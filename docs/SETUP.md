@@ -9,7 +9,7 @@ PRboard 使用 GitHub App 接入仓库。安装令牌为短期令牌，应用只
 - `DATABASE_URL`：普通查询与写入使用的连接串。
 - `DATABASE_URL_UNPOOLED`：SSE 使用 Postgres `LISTEN`，必须使用能保持会话的直连串；事务池连接不适用。
 
-本地开发默认地址为 `http://localhost:3000`。部署到任意支持 Next.js 的平台均可；Vercel 只是可选部署目标，不是运行时依赖。
+本地开发默认地址为 `http://localhost:3000`。部署平台（Coolify、VPS、容器平台等）的具体步骤见 [DEPLOY.md](DEPLOY.md)。不建议部署到 Vercel，原因见该文档。
 
 ## 2. 创建 GitHub App
 
@@ -253,4 +253,4 @@ WantedBy=multi-user.target
 
 ## 部署
 
-PRboard 是普通的 Next.js 应用，需要 Node.js 22+ 与 Postgres。可部署到任何支持 Node 运行时与长连接（SSE）的平台。部署时请按上文的 `.env.example` 配置环境变量，并确保 GitHub App 的 webhook URL 指向你的部署地址。
+各平台的构建命令、迁移、反向代理与上线检查清单见 [DEPLOY.md](DEPLOY.md)。

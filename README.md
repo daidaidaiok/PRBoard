@@ -27,7 +27,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-浏览器打开 `http://localhost:3000`。完整的 GitHub App 权限、webhook、数据库和生产部署说明见 [docs/SETUP.md](docs/SETUP.md)。
+浏览器打开 `http://localhost:3000`。完整的 GitHub App 权限、webhook 与数据库说明见 [docs/SETUP.md](docs/SETUP.md)，各平台的部署步骤见 [docs/DEPLOY.md](docs/DEPLOY.md)。
 
 ## GitHub App 权限
 
