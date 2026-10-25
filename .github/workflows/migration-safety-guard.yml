@@ -1,0 +1,109 @@
+name: Migration Safety Guard
+
+# 上游参考实现 的 migration-safety-guard.yml 是 4 个 Supabase RLS/权限专属检查合并
+# 而成(search_path、SECURITY DEFINER 授权、敏感列 GRANT、索引加锁风险)——
+# PRboard 用 drizzle-orm 直连 Neon Postgres,没有 Supabase 的 RLS/SECURITY
+# DEFINER/GRANT 那一套,这些检查完全不适用,没法照搬。
+#
+# 这里换成对 drizzle 有意义的版本:PR 新增/修改的 drizzle/*.sql 里如果出现
+# 破坏性语句(DROP TABLE / DROP COLUMN / TRUNCATE / 无 WHERE 的 DELETE /
+# 不带 USING 的 ALTER COLUMN TYPE),或者会长时间锁表的操作(不带
+# CONCURRENTLY 的 CREATE INDEX——这条不是 Supabase 专属,普通 Postgres/Neon
+# 上一样会锁表,之前的版本把它和真正 Supabase 专属的三个检查一起当废弃处理
+# 是错的),且没有转义注释,就拦下来,逼作者显式确认这是有意为之。
+#
+# 纯静态分析,不连接任何数据库,ubuntu-latest,零 secret。
+on:
+  pull_request:
+    branches: [main, staging]
+    types: [opened, synchronize, reopened]
+    paths:
+      - "drizzle/*.sql"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migration-safety-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: Destructive Migration Guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan changed migrations for unacknowledged destructive statements
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          FILES=$(git diff --name-only --diff-filter=AM "$BASE_SHA" "$HEAD_SHA" -- 'drizzle/*.sql' || true)
+          if [ -z "$FILES" ]; then
+            echo "No migration files changed."
+            exit 0
+          fi
+
+          # 逃生舱:破坏性语句那一行的**前一行**(必须紧邻,不是"附近若干行")
+          # 写 `-- migration-guard: ack <理由>` 视为作者已经确认过。故意要求
+          # 紧邻上一行,不是一个宽泛的行号窗口——窗口式的"附近"会让两条离得近
+          # 的破坏性语句共用同一条 ack,后一条其实没人确认过也会被放行。
+          #
+          # 已知局限:纯逐行 grep,匹配不到跨多行的语句(比如 ALTER TABLE 的
+          # 子句换行写);也不区分注释/字符串字面量里出现这些关键词的误报。
+          # 对这个小项目的迁移文件(drizzle-kit 生成,通常语句紧凑、单行为主)
+          # 这个精度够用,真要做到语句级精确匹配需要按 drizzle-kit 的
+          # `--> statement-breakpoint` 分隔符切分后逐条解析,复杂度换来的收益
+          # 在这个仓库现在的规模下不成比例,先不做。
+          PATTERN='DROP[[:space:]]+TABLE|DROP[[:space:]]+COLUMN|TRUNCATE|ALTER[[:space:]]+TABLE[^;]*DROP'
+          ACK_PATTERN='^[[:space:]]*--[[:space:]]*migration-guard:[[:space:]]*ack\b'
+          FOUND=0
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            # 三路单独检测,各自的"危险"定义不能塞进同一个 PATTERN 里表达:
+            # - DELETE FROM:同一行里没有 WHERE 才算无条件删除
+            # - ALTER COLUMN TYPE:同一行里没有 USING 才算有损转换
+            # - CREATE INDEX:同一行里没有 CONCURRENTLY 才会长时间锁表
+            # 均只看单行,同样是逐行 grep 的精度局限,见上面注释。
+            MATCHES=$( { grep -inE "$PATTERN" "$f" || true; \
+                         grep -inE 'DELETE[[:space:]]+FROM' "$f" | grep -vi 'WHERE' || true; \
+                         grep -inE 'ALTER[[:space:]]+TABLE.*ALTER[[:space:]]+COLUMN.*TYPE' "$f" | grep -vi 'USING' || true; \
+                         grep -inE 'CREATE[[:space:]]+(UNIQUE[[:space:]]+)?INDEX' "$f" | grep -vi 'CONCURRENTLY' || true; } \
+                       | sort -t: -k1,1n -u)
+            [ -z "$MATCHES" ] && continue
+
+            UNACKED=""
+            while IFS=: read -r lineno _rest; do
+              PREV=$((lineno - 1))
+              if [ "$PREV" -ge 1 ] && sed -n "${PREV}p" "$f" | grep -qE "$ACK_PATTERN"; then
+                continue
+              fi
+              UNACKED="${UNACKED}${lineno} "
+            done <<< "$MATCHES"
+
+            if [ -z "$UNACKED" ]; then
+              echo "⚠️  $f 含风险语句,但每条都在紧邻的上一行用 migration-guard: ack 注释确认了,放行。"
+              continue
+            fi
+
+            echo "::error file=$f::检测到破坏性/高风险迁移语句(DROP TABLE / DROP COLUMN / TRUNCATE / 无 WHERE 的 DELETE / 不带 USING 的 ALTER COLUMN TYPE / 不带 CONCURRENTLY 的 CREATE INDEX),第 ${UNACKED}行的紧邻上一行没有确认注释。"
+            echo "    ${MATCHES//$'\n'/$'\n    '}"
+            FOUND=1
+          done <<< "$FILES"
+
+          if [ "$FOUND" -eq 1 ]; then
+            echo ""
+            echo "如果这就是你想要的(比如清理废弃列/表),在该语句正上方紧邻的一行加确认(必须是紧邻的上一行,不能隔行):"
+            echo "  -- migration-guard: ack <为什么这个操作是安全的>"
+            echo "  DROP TABLE ...;"
+            exit 1
+          fi
+
+          echo "✅ 未发现未确认的破坏性迁移语句"

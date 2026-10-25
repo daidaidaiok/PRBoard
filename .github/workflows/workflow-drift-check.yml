@@ -1,0 +1,111 @@
+name: Workflow Drift Check
+
+# 参照 上游参考实现 的 workflow-drift-check.yml,砍掉了它那套"动态发现 workflow
+# 调用了哪些脚本"的复杂机制(上游参考实现 的 workflow 会 shell 出去调用
+# scripts/tools/ 下的脚本,这些脚本可能只在 main 或只在 staging 存在,得
+# 动态并集出监控范围;PRboard 的 workflow 都是自包含的内联 bash,没有这层
+# 分叉,不需要)。
+#
+# 只保留核心问题:main 被直接 hotfix 过 .github/workflows/**,而这次改动没有
+# 回流到 staging——下次从 staging 开 promote PR 时,两边 workflow 文件不一致,
+# 轻则 CI 行为不一致,重则(比如用了 anthropics/claude-code-action 的 OIDC
+# token 交换)因为 workflow 文件内容必须和默认分支完全一致而直接 401。
+#
+# 判定:文件同时满足"main 和 staging 内容不同"+"main 自 merge-base 以来
+# 动过这个文件"才算 drift——只是 staging 领先 main(正常状态,还没 promote)
+# 不算。
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - ".github/workflows/**"
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: workflow-drift-check
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  # 开/关 issue 用同一个标题,upsert-tracking-issue 靠这个字符串去搜索既有
+  # issue——两处字面量各改各的容易漏改一处,导致关闭那条路径搜不到打开那条
+  # 路径开的 issue,永远关不掉(main-staging-ancestry-guard.yml 已经用同样的
+  # env var 写法修过一次这个问题)。
+  DRIFT_ISSUE_TITLE: "Workflow drift: main ahead of staging"
+
+jobs:
+  check:
+    name: Diff .github/workflows between main and staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute drift
+        id: drift
+        run: |
+          set -euo pipefail
+
+          git fetch origin main staging --quiet
+          BASE=$(git merge-base origin/main origin/staging)
+
+          MAIN_TOUCHED=$(git diff --name-only "$BASE" origin/main -- '.github/workflows/**' || true)
+
+          # 一次 git diff 拿到"main 改过的文件里,哪些和 staging 也不一样",
+          # 不用每个文件单独 fork 一次 git 进程。
+          if [ -n "$MAIN_TOUCHED" ]; then
+            # 故意不给 $MAIN_TOUCHED 加引号,让它按换行拆成多个 pathspec 参数。
+            # shellcheck disable=SC2086
+            DRIFTED=$(git diff --name-only origin/main origin/staging -- $MAIN_TOUCHED || true)
+          else
+            DRIFTED=""
+          fi
+
+          if [ -z "$DRIFTED" ]; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "✅ 没有发现 workflow 文件 drift"
+          else
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "⚠️ 发现以下文件在 main 改过但没同步回 staging:"
+            echo "$DRIFTED"
+            # 分隔符带运行时随机成分,不用固定词,见 workflow-file-guard.yml
+            # 想拦住的那类问题——这里内容是文件路径,理论风险很低但不假设。
+            MARKER="DRIFT_${GITHUB_RUN_ID}_${RANDOM}"
+            {
+              echo "files<<$MARKER"
+              echo "$DRIFTED"
+              echo "$MARKER"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open/update drift issue
+        if: steps.drift.outputs.found == 'true'
+        uses: ./.github/actions/upsert-tracking-issue
+        with:
+          title: ${{ env.DRIFT_ISSUE_TITLE }}
+          resolved: "false"
+          body: |
+            以下 `.github/workflows/**` 文件在 `main` 上改过,但和 `staging` 上的内容不一致(可能是 main 被直接 hotfix,变更没有回流)：
+
+            ```
+            ${{ steps.drift.outputs.files }}
+            ```
+
+            处理方式:走 `promote` skill 的"回流 staging"步骤,把 main 合并回 staging;如果这些改动本就该只在 main 生效,在这里说明原因并手动关闭本 issue。
+
+      - name: Close stale drift issue
+        if: steps.drift.outputs.found == 'false'
+        uses: ./.github/actions/upsert-tracking-issue
+        with:
+          title: ${{ env.DRIFT_ISSUE_TITLE }}
+          body: "✅ workflow 文件已经和 staging 同步,自动关闭。"
+          resolved: "true"

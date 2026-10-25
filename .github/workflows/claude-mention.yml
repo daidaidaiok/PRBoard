@@ -1,0 +1,53 @@
+name: Claude (@mention)
+
+# 参照 上游参考实现 的 claude-mention.yml,去掉了所有针对 self-hosted macOS 桌面
+# 常驻账号的 workaround(预装二进制探测、隔离 HOME 目录防 keychain 弹窗、
+# autoupdater 禁用等)——ubuntu-latest 是一次性 runner,这些问题不存在,让
+# action 自己装 Claude Code 就行。
+#
+# 单人仓库,保留 OWNER-only 限制:只有仓库所有者在 issue/PR 评论里写
+# `@claude ...` 才会触发,机器人评论不响应。
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  # 跟同目录 claude-review.yml 不一样:这里响应的是任意 @claude 请求(比如
+  # "@claude fix this typo"),可能需要提交并 push 代码改动,contents: read
+  # 不够用——@claude 尝试 push 时会因为权限不足失败,而不是干净地拒绝或跳过。
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+concurrency:
+  group: claude-mention-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  respond:
+    name: Respond to @claude mention
+    if: >
+      contains(github.event.comment.body, '@claude') &&
+      github.event.comment.author_association == 'OWNER' &&
+      github.event.comment.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # secrets context 在任何 if: 里都不允许用(只有 env:/with: 能引用),所以
+    # 先在 job 级别的 env: 里把"有没有配置"转成一个普通字符串,step 的 if: 再
+    # 去读这个 env 变量。
+    env:
+      HAS_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+    steps:
+      - name: Checkout
+        if: ${{ env.HAS_TOKEN == 'true' }}
+        uses: actions/checkout@v4
+
+      - name: Run Claude Code
+        if: ${{ env.HAS_TOKEN == 'true' }}
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          trigger_phrase: "@claude"

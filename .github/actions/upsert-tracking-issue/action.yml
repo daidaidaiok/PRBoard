@@ -1,0 +1,54 @@
+name: Upsert tracking issue
+description: >
+  找一个按标题匹配的、当前开着的 issue;如果 resolved=true 就关掉(带评论),
+  否则要么在已有 issue 上追加评论,要么新开一个。抽出来是因为
+  main-staging-ancestry-guard.yml / workflow-drift-check.yml /
+  vercel-env-audit.yml 这三个 CI 守卫都需要同一套"开/关追踪 issue"逻辑,
+  原本各自复制一份,改一处容易漏改别处。
+
+inputs:
+  title:
+    description: issue 标题,同时也是查找已有 issue 的搜索关键字
+    required: true
+  body:
+    description: issue 正文,或者关闭时的评论内容
+    required: true
+  label:
+    description: 新建 issue 时打的 label
+    required: false
+    default: infrastructure
+  resolved:
+    description: "'true' 表示状况已恢复,把已有 issue 关掉;其他任何值表示状况仍存在,追加评论或新建"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TITLE: ${{ inputs.title }}
+        BODY: ${{ inputs.body }}
+        LABEL: ${{ inputs.label }}
+        RESOLVED: ${{ inputs.resolved }}
+      run: |
+        set -euo pipefail
+
+        # `.[0].number` 在没有匹配结果时 jq 会打印字面量 "null"(不是空字符串!),
+        # 那样 `[ -n "$EXISTING" ]` 会把它当成"找到了",跑出 `gh issue close null`
+        # 这种必然出错的命令。`// empty` 让"没有匹配"时真正输出空字符串。
+        EXISTING=$(gh issue list --search "${TITLE} in:title" --state open --json number --jq '.[0].number // empty' || true)
+
+        if [ "$RESOLVED" = "true" ]; then
+          if [ -n "${EXISTING:-}" ]; then
+            gh issue close "$EXISTING" --comment "$BODY"
+          fi
+          exit 0
+        fi
+
+        if [ -n "${EXISTING:-}" ]; then
+          gh issue comment "$EXISTING" --body "$BODY"
+        else
+          gh issue create --title "$TITLE" --body "$BODY" --label "$LABEL" || \
+            gh issue create --title "$TITLE" --body "$BODY"
+        fi

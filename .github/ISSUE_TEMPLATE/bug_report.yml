@@ -1,0 +1,36 @@
+name: 缺陷报告
+description: 报告可复现的功能问题
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "请勿在此提交凭据、私钥、访问令牌或未披露的安全漏洞。"
+  - type: textarea
+    id: summary
+    attributes:
+      label: 问题描述
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      placeholder: "1. ...\n2. ...\n3. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期与实际结果
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 提交 SHA 或版本
+  - type: textarea
+    id: environment
+    attributes:
+      label: 环境信息
+      description: "Node.js、部署平台、浏览器及脱敏后的日志。"

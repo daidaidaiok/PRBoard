@@ -1,0 +1,87 @@
+name: Workflow File Guard
+
+# 参照 上游参考实现 的 workflow-file-guard.yml,只保留其中一条通用规则:heredoc
+# 分隔符注入防护。上游参考实现 版本还有第二条"setup-node 别加 cache"的检查,那是
+# 因为 上游参考实现 跑在常驻的 self-hosted runner 上,GH Actions 的跨 run cache反而是
+# 负优化;PRboard 用的是 ubuntu-latest 一次性 runner,cache: npm 恰恰是官方推荐
+# 做法,这条规则在这里没有意义,不移植。
+#
+# heredoc 注入的风险:workflow 里常见 `cat >> "$GITHUB_OUTPUT" <<EOF ... EOF`
+# 这种写法,把动态内容(比如 PR 标题、commit message)写进去。如果分隔符是
+# 常见词(EOF/END 之类)且写入内容不受控,内容里一旦出现独占一行的 "EOF",
+# heredoc 会被提前截断,后面的内容要么丢失要么被解释成 shell 命令——是真实的
+# 命令注入面。规则:分隔符必须带上运行时随机成分。
+on:
+  pull_request:
+    branches: [main, staging]
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/**"
+      - ".github/actions/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workflow-file-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  heredoc-guard:
+    name: Heredoc Delimiter Guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan added lines for weak heredoc delimiters writing to $GITHUB_*
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          FILES=$(git diff --name-only --diff-filter=AM "$BASE_SHA" "$HEAD_SHA" -- '.github/workflows/*.yml' '.github/workflows/*.yaml' '.github/actions/**/*.yml' '.github/actions/**/*.yaml' || true)
+          if [ -z "$FILES" ]; then
+            echo "No workflow/action files changed."
+            exit 0
+          fi
+
+          FOUND=0
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            # 只看新增/修改的行(+ 开头,排除 diff header 的 +++),
+            # 抓 "$GITHUB_OUTPUT / $GITHUB_ENV / $GITHUB_STEP_SUMMARY" 附近
+            # 用常见弱分隔符开 heredoc 的写法。这是个固定关键词黑名单,不是
+            # 穷举——真正安全的做法是分隔符带运行时随机成分(见下面的修复建议),
+            # 这里只能拦住最常见的几个,拦不住所有可能的静态词,但对这个小
+            # 仓库来说够用,不值得为了完备性换成更复杂的正向检测。
+            HITS=$(git diff "$BASE_SHA" "$HEAD_SHA" -- "$f" \
+              | grep -E '^\+' | grep -v '^\+\+\+' \
+              | grep -E '(GITHUB_OUTPUT|GITHUB_ENV|GITHUB_STEP_SUMMARY)' \
+              | grep -E "<<-?['\"]?(EOF|END|DELIM|BODY|TOKEN|MARKER|DONE)['\"]?[[:space:]]*\$" || true)
+            if [ -n "$HITS" ]; then
+              echo "::error file=$f::检测到向 \$GITHUB_OUTPUT/\$GITHUB_ENV/\$GITHUB_STEP_SUMMARY 写入时使用了固定/常见的 heredoc 分隔符(EOF/END/...)。"
+              echo "$HITS"
+              FOUND=1
+            fi
+          done <<< "$FILES"
+
+          if [ "$FOUND" -eq 1 ]; then
+            echo ""
+            echo "修复方式:分隔符加上运行时随机成分,避免动态内容里出现同名行导致 heredoc 提前截断/被注入,例如:"
+            # 下面几行故意用单引号:打印字面量的 $ 符号做示例,不需要 shell 展开。
+            # shellcheck disable=SC2016
+            echo '  DELIM="EOF_$(date +%s%N)_$RANDOM"'
+            # shellcheck disable=SC2016
+            echo '  cat >> "$GITHUB_OUTPUT" <<"$DELIM"'
+            echo '  ...'
+            # shellcheck disable=SC2016
+            echo '  "$DELIM"'
+            exit 1
+          fi
+
+          echo "✅ 未发现弱 heredoc 分隔符"

@@ -1,0 +1,102 @@
+name: PR Check
+
+# PRboard 是单一 Next.js 应用。将 lint、类型检查、单元测试和构建拆成独立 job，
+# 让任一失败都能清晰定位，也避免测试与构建相互掩盖。
+#
+# 这个仓库没有 GitHub Pro,拿不到 branch protection / required status checks,
+# 所以这里的红叉不会硬阻止合并——它是给 `promote` skill Phase 3 人工核对用的信号。
+on:
+  pull_request:
+    branches: [main, staging]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# `next build` 会在构建期 import 到 src/db/index.ts(顶层就实例化 drizzle 客户端)、
+# src/auth.ts 等模块。这些值不需要真的能连上任何服务——postgres.js 是惰性连接,
+# next-auth 的 provider 配置只是字符串——只要是语法合法的占位值,build 就能过。
+# 不是真实凭据,可以放心写死在这里,不用当 secret 管理。
+env:
+  DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
+  DATABASE_URL_UNPOOLED: "postgresql://ci:ci@localhost:5432/ci"
+  GITHUB_APP_ID: "0"
+  GITHUB_APP_SLUG: "ci-placeholder"
+  GITHUB_APP_CLIENT_ID: "ci"
+  GITHUB_APP_CLIENT_SECRET: "ci"
+  GITHUB_APP_PRIVATE_KEY: "ci"
+  GITHUB_APP_WEBHOOK_SECRET: "ci"
+  ALLOWED_GITHUB_LOGIN: "ci"
+  AUTH_SECRET: "ci-placeholder-secret-0000000000000000"
+  AUTH_URL: "http://localhost:3000"
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      # `tsc --noEmit` 依赖 Next.js 生成的 `.next/types`(App Router 的
+      # `LayoutProps`/`PageProps` 等 ambient 类型),`next typegen` 只做类型生成,
+      # 不跑完整 build,比在这个 job 里再跑一次 `next build` 便宜得多。
+      - name: Type Check
+        run: npm run type-check
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Vitest
+        run: npm test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build

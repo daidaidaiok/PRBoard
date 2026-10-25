@@ -1,0 +1,109 @@
+name: Claude Review
+
+# 参照 上游参考实现 的 web-claude-review.yml(1537 行,重度定制),但只留下最核心
+# 的骨架:checkout → 跑 claude-code-action → 按 must-fix/nice-to-have/reject
+# 分类发评论。丢掉的东西:
+# - 双账号 OAuth failover(单人小项目一个 token 挂了大不了手动重跑,不值得
+#   为此维护第二个账号)
+# - ~320 行硬编码 上游参考实现 目录结构/内部约定(pnpm workspace、i18n、barrel
+#   re-export 规则、SUPER_ADMIN_EMAIL 等)的 review prompt——换成下面这段
+#   贴合 PRboard 实际技术栈的短 prompt
+# - workflow-validation-skip 探测副 job(那是绕 上游参考实现 自己 CI 编排里的一个
+#   特殊坑,这里没有对应场景)
+#
+# 分类词汇(must-fix / nice-to-have / reject)特意和用户全局 CLAUDE.md 里
+# `/code-review` 的分类约定保持一致,方便跨项目复用同一套判断标准。
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: AI code review
+    # 跳过草稿 PR;跳过 head 是 staging 的 PR——那是 staging→main 的 promote
+    # PR,里面每个 commit 在进 staging 前已经被逐个 review 过,不需要重复审;
+    # 跳过 main-staging-ancestry-guard.yml 自动开的 chore/auto-backsync-*
+    # 自愈 PR——`-s ours` 生成,对 staging 没有实质 diff,审了也是白审。
+    if: >
+      github.event.pull_request.draft == false &&
+      github.head_ref != 'staging' &&
+      !startsWith(github.head_ref, 'chore/auto-backsync-main-to-staging-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # secrets context 在任何 if: 里都不允许用,先转成 env 变量再判断。
+    env:
+      HAS_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+    steps:
+      - name: Checkout
+        if: ${{ env.HAS_TOKEN == 'true' }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 向 PRboard(/settings/ai-review)拉本仓库的 review 配置:是否启用、模型、
+      # 思考等级、服务商。拿不到(vars.PRBOARD_URL / secrets.PRBOARD_TOKEN 没配、
+      # PRboard 不可达)就回退到 action 内置默认(claude-opus-5-5 / high / OAuth
+      # token),行为与接入前一致;PRboard 明确停用(暂停/关闭/额度用尽)才跳过。
+      # 自己仓库用本地路径引用,保证测的是本 PR 里的 action 版本。
+      - name: AI review config
+        id: ai-review-config
+        if: ${{ env.HAS_TOKEN == 'true' }}
+        uses: ./.github/actions/ai-review-config
+        with:
+          prboard-url: ${{ vars.PRBOARD_URL }}
+          token: ${{ secrets.PRBOARD_TOKEN }}
+
+      - name: Run Claude Code review
+        id: review
+        if: ${{ env.HAS_TOKEN == 'true' && steps.ai-review-config.outputs.enabled == 'true' }}
+        uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: ${{ steps.ai-review-config.outputs.base-url || 'https://api.anthropic.com' }}
+        with:
+          # 按配置的服务商类型二选一;secret 名由 PRboard 返回,回退时是 CLAUDE_CODE_OAUTH_TOKEN。
+          claude_code_oauth_token: ${{ steps.ai-review-config.outputs.provider-kind == 'claude-oauth' && secrets[steps.ai-review-config.outputs.secret-name] || '' }}
+          anthropic_api_key: ${{ steps.ai-review-config.outputs.provider-kind == 'anthropic-compatible' && secrets[steps.ai-review-config.outputs.secret-name] || '' }}
+          claude_args: |
+            --model ${{ steps.ai-review-config.outputs.model }}
+            --effort ${{ steps.ai-review-config.outputs.effort }} ${{ steps.ai-review-config.outputs.extra-args }}
+          prompt: |
+            审查这个 PR 的 diff。PRboard 是一个单人使用的 Next.js(App Router)
+            工具,GitHub App 接入、drizzle-orm 连 Neon Postgres、Auth.js 做
+            登录、Postgres LISTEN/NOTIFY + SSE 做实时推送。
+
+            重点检查:
+            - 正确性 bug:边界条件、null/undefined 处理、异步竞态
+            - 安全:webhook 签名校验(HMAC)有没有被绕过或弱化、SQL 是否可能
+              被拼接注入(drizzle 的 sql 模板要确认参数化)、鉴权检查
+              (ALLOWED_GITHUB_LOGIN 白名单)有没有漏挡的路径
+            - 简洁性/复用:有没有引入不必要的抽象,或者该复用现有 lib/ 下
+              工具却重新写了一遍
+            - 明显的性能问题:比如本可以一次查询却在循环里发多次请求
+
+            把发现按下面三类分类,每条给出文件:行号和具体理由:
+            - must-fix:正确性 bug、安全问题、破坏现有功能
+            - nice-to-have:风格、小的重构建议、可选的改进
+            - reject 的东西不用提,只报 must-fix 和 nice-to-have
+
+            用中文回复,简洁,不要逐行复述代码在做什么。
+
+      # 回报用量(token / 费用)供设置页额度条与预算自动停用使用;任何失败都不阻断。
+      - name: AI review usage
+        if: ${{ always() && env.HAS_TOKEN == 'true' && steps.ai-review-config.outputs.enabled == 'true' }}
+        uses: ./.github/actions/ai-review-usage
+        with:
+          prboard-url: ${{ vars.PRBOARD_URL }}
+          token: ${{ secrets.PRBOARD_TOKEN }}
+          source: ${{ steps.ai-review-config.outputs.source }}
+          execution-file: ${{ steps.review.outputs.execution_file }}
+          model: ${{ steps.ai-review-config.outputs.model }}
+          pr-number: ${{ github.event.pull_request.number }}

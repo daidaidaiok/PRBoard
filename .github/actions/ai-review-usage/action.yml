@@ -1,0 +1,52 @@
+name: 'AI review usage'
+description: |
+  把本次 AI review 的用量（token、费用）回报给 PRboard，用于设置页额度条与
+  预算自动停用。放在 review job 的最后，配合 `if: always()` 使用。
+
+  不阻断 job：未配置、回退配置（source=fallback）、PRboard 不可达、回报失败都只
+  输出提示/warning，退出码恒为 0。用量从 claude-code-action 的 execution_file
+  （单个 JSON 数组，取最后一条 type==result）读取。逻辑在 run.sh，有 vitest 覆盖。
+
+inputs:
+  prboard-url:
+    description: 'PRboard 站点根地址'
+    required: true
+  token:
+    description: '本仓库的 PRboard token，调用方传 secrets.PRBOARD_TOKEN'
+    required: false
+    default: ''
+  repo:
+    description: 'owner/name，默认当前仓库'
+    required: false
+    default: ${{ github.repository }}
+  source:
+    description: "ai-review-config 的 source 输出；'fallback' 时跳过回报"
+    required: false
+    default: 'remote'
+  execution-file:
+    description: 'claude-code-action 的 execution_file 输出路径'
+    required: false
+    default: ''
+  model:
+    description: '本次实际使用的模型'
+    required: true
+  pr-number:
+    description: 'PR 号（可空）'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        PRBOARD_URL: ${{ inputs.prboard-url }}
+        TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        SOURCE: ${{ inputs.source }}
+        EXEC_FILE: ${{ inputs.execution-file }}
+        MODEL: ${{ inputs.model }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        RUN_ID: ${{ github.run_id }}
+        RUN_ATTEMPT: ${{ github.run_attempt }}
+      run: bash "${{ github.action_path }}/run.sh"

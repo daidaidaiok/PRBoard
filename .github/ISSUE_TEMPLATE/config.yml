@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞报告
+    url: ../../security/advisories/new
+    about: 请使用私密漏洞报告，不要在公开 Issue 中披露安全问题。

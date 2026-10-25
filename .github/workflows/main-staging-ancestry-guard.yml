@@ -1,0 +1,226 @@
+name: Main/Staging Ancestry Guard
+
+# 参照 上游参考实现 的 main-staging-ancestry-guard.yml。防的问题:staging→main 的
+# promote PR 如果被误用 squash/rebase merge(而不是 merge commit)合并,main
+# 会多出一个"拍平"的提交,不再是 staging 历史的祖先。下一次 promote 时 git
+# 会把这次拍平的提交当成"main 独立改了同样内容",产生一堆虚假冲突——上游参考实现
+# 是被这个坑过两次才补上这条自愈 workflow。
+#
+# 这个仓库没有 GitHub Pro,拿不到 branch protection 强制"只能用 merge
+# commit",所以这条 workflow 是唯一的自动防线(`promote` skill 里的
+# "必须 --merge,不能 squash"是人工纪律那一层,这里是技术兜底)。
+#
+# 算法:main 不是 staging 祖先时,先看 main 独有的每个提交,它的 tree(不是
+# patch)是否能在 staging 全历史里找到——squash 合并出来的提交,内容树和
+# squash 前 staging 上那一刻的树是完全一样的,只是提交本身不在 staging 历史
+# 里,用 tree 比对而不是 `git cherry`(patch 等价)就是为了识别这种情况。
+# 如果每个 main-only 提交的 tree 都能在 staging 里找到对应点,判定为"squash
+# 假象",自动开一个把 main 用 `merge -s ours` 合并回 staging 的 PR(只补
+# ancestry,不引入内容变化)。如果有 tree 对不上的(说明 main 上真的有
+# staging 没有的内容,比如未回流的 hotfix),不动手,开 issue 交给人处理,
+# 避免自动化误吞掉真实变更。
+#
+# 已知局限(这是启发式判断,不是数学证明):如果 main 上有一个独立提交,
+# 内容恰好和 staging 历史上某一刻的 tree 完全相同(比如一个把某文件还原到
+# 旧版本的 hotfix),会被误判成"squash 假象"而合并覆盖——生成的 PR body 会
+# 明确点出这一点,人工 review 那个自动 PR 时应该心里有数。
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: main-staging-ancestry-guard
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  # 开/关 issue 用同一个标题,靠这个字符串去搜索既有 issue——healthy/heal/
+  # unexplained 三条路径必须用完全相同的标题,否则关闭那条路径搜不到打开那
+  # 条路径开的 issue,会永远关不掉。
+  DRIFT_ISSUE_TITLE: "Main/Staging ancestry drift"
+
+jobs:
+  check:
+    name: Check main is an ancestor of staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Determine ancestry status
+        id: status
+        run: |
+          set -euo pipefail
+
+          git fetch origin main staging --quiet
+
+          if git merge-base --is-ancestor origin/main origin/staging; then
+            echo "✅ main 是 staging 的祖先,健康状态。"
+            echo "outcome=healthy" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "⚠️ main 不是 staging 的祖先,开始分析 main-only 提交……"
+
+          MAIN_ONLY=$(git rev-list origin/staging..origin/main)
+          if [ -z "$MAIN_ONLY" ]; then
+            echo "main-only 提交为空但又不是祖先关系,不符合预期,交给人工检查。" >&2
+            exit 1
+          fi
+
+          echo "构建 staging 历史的 tree hash 集合……"
+          # `git log --format=%T` 一次进程调用拿到所有 commit 的 tree hash,
+          # 比"git rev-list | xargs -I{} git rev-parse"每个 commit 都 fork 一次
+          # git 进程快得多——仓库历史越长差距越明显。main-only 那一侧同理,
+          # 用 `git log --format='%H %T'` 一次拿到 (sha, tree) 全部配对,不在
+          # 循环里逐个提交再 fork 一次 git rev-parse。
+          STAGING_TREES=$(git log --format=%T origin/staging | sort -u)
+          MAIN_ONLY_WITH_TREE=$(git log --format='%H %T' origin/staging..origin/main)
+
+          UNEXPLAINED=0
+          while read -r sha tree; do
+            [ -z "$sha" ] && continue
+            if ! grep -qx "$tree" <<< "$STAGING_TREES"; then
+              echo "  ❌ $sha 的 tree 在 staging 历史里找不到对应点(真实独有内容)"
+              UNEXPLAINED=1
+            else
+              echo "  ✓ $sha 的 tree 在 staging 历史里能找到(squash 假象候选)"
+            fi
+          done <<< "$MAIN_ONLY_WITH_TREE"
+
+          if [ "$UNEXPLAINED" -eq 1 ]; then
+            echo "outcome=unexplained" >> "$GITHUB_OUTPUT"
+          else
+            echo "outcome=heal" >> "$GITHUB_OUTPUT"
+          fi
+          # 输出分隔符带上运行时随机成分($RANDOM + run id),不用固定词——
+          # 万一 main_only 列表的某一行(commit sha,理论上不会,但避免依赖
+          # "内容不可能长这样"的假设)恰好等于分隔符,固定词分隔符会被提前
+          # 截断。
+          MARKER="MAIN_ONLY_${GITHUB_RUN_ID}_${RANDOM}"
+          {
+            echo "main_only<<$MARKER"
+            echo "$MAIN_ONLY"
+            echo "$MARKER"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Close drift issue (healthy)
+        if: steps.status.outputs.outcome == 'healthy'
+        uses: ./.github/actions/upsert-tracking-issue
+        with:
+          title: ${{ env.DRIFT_ISSUE_TITLE }}
+          body: "✅ main 已重新成为 staging 的祖先,自动关闭。"
+          resolved: "true"
+
+      - name: File issue for unresolvable divergence
+        if: steps.status.outputs.outcome == 'unexplained'
+        uses: ./.github/actions/upsert-tracking-issue
+        with:
+          title: ${{ env.DRIFT_ISSUE_TITLE }}
+          resolved: "false"
+          body: |
+            main 不是 staging 的祖先,且以下 main-only 提交里至少有一个的内容树在 staging 历史里找不到对应点——说明 main 上有 staging 还没有的真实变更(比如没有回流的 hotfix),不能自动修复。
+
+            main-only 提交列表:
+            ```
+            ${{ steps.status.outputs.main_only }}
+            ```
+
+            请人工确认后处理:要么把这些变更通过 promote skill 的"回流 staging"步骤合回去,要么如果这些提交本就不该存在,手动修 main。
+
+      - name: Fail job for unresolvable divergence
+        if: steps.status.outputs.outcome == 'unexplained'
+        run: exit 1
+
+      - name: Grace-period recheck before self-heal
+        id: recheck
+        if: steps.status.outputs.outcome == 'heal'
+        run: |
+          set -euo pipefail
+
+          # promote skill 的正常流程本来就会先把 promote PR 合并进 main(Phase 4),
+          # 隔一段时间才手动把 main 回流 staging(Phase 6)——那个窗口期里 main
+          # 天然不是 staging 的祖先,且新 merge 提交的 tree 大概率跟 staging 当前
+          # tip 一样,会被上面的启发式判成"squash 假象",跟人工回流步骤抢跑。
+          # 留一段宽限期,给人工/自动回流一个先完成的机会,减少这种误触发。
+          echo "等待宽限期后复检,避免跟 promote 流程的手动回流步骤(Phase 6)竞态……"
+          sleep 180
+          git fetch origin main staging --quiet
+          if git merge-base --is-ancestor origin/main origin/staging; then
+            echo "复检后 main 已经是 staging 的祖先(回流已完成),无需自愈。"
+            echo "still_drifting=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "复检后仍未恢复祖先关系,继续自愈。"
+            echo "still_drifting=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Close drift issue (resolved during grace period)
+        if: steps.status.outputs.outcome == 'heal' && steps.recheck.outputs.still_drifting == 'false'
+        uses: ./.github/actions/upsert-tracking-issue
+        with:
+          title: ${{ env.DRIFT_ISSUE_TITLE }}
+          body: "✅ 宽限期复检时 main 已经是 staging 的祖先(回流已完成),自动关闭,无需自愈。"
+          resolved: "true"
+
+      - name: Self-heal ancestry (squash illusion)
+        id: heal
+        if: steps.status.outputs.outcome == 'heal' && steps.recheck.outputs.still_drifting == 'true'
+        run: |
+          set -euo pipefail
+
+          echo "全部 main-only 提交的 tree 都能在 staging 历史里找到,判定为 squash 假象,自动开 PR 修复 ancestry(不引入内容变化)……"
+          FIX_BRANCH="chore/auto-backsync-main-to-staging-$(date +%s)"
+          git checkout -b "$FIX_BRANCH" origin/staging
+          git merge -s ours --no-edit origin/main -m "chore: restore main as ancestor of staging (auto, no content change)"
+
+          # 这里的 git diff 检查是防御性断言,不是独立验证:`-s ours` 策略
+          # 本来就保证结果树和当前分支(这里是 origin/staging)完全一致,
+          # 与 origin/main 的内容无关——所以这个 diff 按定义必然为空,
+          # 不能反过来当作"main 上的内容没有被误吞"的证据。真正承担判断
+          # 责任的是上一步的 tree-hash 启发式,这里只是万一 git 行为出现
+          # 意外(比如未来 -s ours 的语义变化)时的一道兜底断言。
+          if ! git diff --quiet origin/staging; then
+            echo "自愈合并后 diff 不为空,不符合预期,放弃自动修复,转人工。" >&2
+            exit 1
+          fi
+
+          git push origin "$FIX_BRANCH"
+          gh pr create \
+            --base staging \
+            --head "$FIX_BRANCH" \
+            --title "chore: restore main as ancestor of staging" \
+            --body "自动生成:用 \`git merge -s ours\` 把 main 合并回 staging,只恢复祖先关系。\`-s ours\` 策略保证结果树等于 staging 当前的树——这是这个合并策略的定义,不是额外验证出来的。
+
+          判定依据是启发式的,不是数学证明:main 上每个独有提交的内容 tree 都能在 staging 历史里找到对应点,大概率是一次 squash 合并的产物。理论上如果 main 上有个独立提交碰巧复现了 staging 某个历史时刻的内容(概率很低,但不是零),也会被同样判定并合并覆盖——review 这个 PR 时如果对 main 那几个提交的来历有疑问,先去确认再合并。
+
+          ⚠️ **合并这个 PR 时必须用 \"Create a merge commit\",不能用 Squash 或 Rebase**——这个 PR 唯一的作用就是让 main 重新成为 staging 的祖先,squash/rebase 合并会拍平这个 merge 提交,丢掉跟 main 的祖先关系,表面看起来合并了,实际上 ancestry 并没有恢复。
+
+          由 main-staging-ancestry-guard workflow 自动创建。"
+
+          echo "✅ 已开 PR 修复 ancestry"
+
+      - name: Update drift issue (heal PR opened, still pending merge)
+        if: steps.status.outputs.outcome == 'heal' && steps.recheck.outputs.still_drifting == 'true' && steps.heal.outcome == 'success'
+        uses: ./.github/actions/upsert-tracking-issue
+        with:
+          title: ${{ env.DRIFT_ISSUE_TITLE }}
+          # 这里故意不关(resolved: "false")——PR 只是"开出来了",还没有被
+          # 正确合并(必须是真 merge commit,不能 squash/rebase,见 PR body)。
+          # 提前关掉这条追踪,squash-merge 会让 ancestry 问题在无人察觉的情况下
+          # 一直存在。真正的关闭交给下一次 push 到 main 时的"Close drift issue
+          # (healthy)"步骤,那时才是 ancestry 被正确恢复的确证。
+          body: "自愈 PR 已开出(见上面 Self-heal 步骤日志),等待人工用 merge commit 方式合并——这条追踪先保持打开,合并生效(即 main 重新成为 staging 祖先)后由本 workflow 下一次运行自动关闭。"
+          resolved: "false"

@@ -1,0 +1,111 @@
+name: 'AI review config'
+description: |
+  向 PRboard（/settings/ai-review）拉取本仓库的 AI review 配置：是否启用、服务商、
+  模型、思考等级。放在 review job 的最前面，后续 claude-code-action 步骤用本 action
+  的 outputs 决定是否运行、用哪个模型/端点/secret。
+
+  拿不到有效配置（未配 token、PRboard 不可达、token 无效、响应异常）时回退到
+  下面 fallback-*（通道模式用 lane-fallback-*）的内置默认并输出 ::warning::，review 照常跑；只有 PRboard 明确
+  返回停用（暂停/关闭/额度用尽）才输出 enabled=false。
+
+  token 与 PRboard 地址由调用方传入（composite action 读不到调用方的 secrets
+  上下文）：`token: secrets.PRBOARD_TOKEN`。逻辑在 run.sh，有 vitest 覆盖。
+
+inputs:
+  prboard-url:
+    description: 'PRboard 站点根地址，如 https://prboard.example.com'
+    required: true
+  token:
+    description: '本仓库的 PRboard token，调用方传 secrets.PRBOARD_TOKEN；为空时直接回退'
+    required: false
+    default: ''
+  repo:
+    description: 'owner/name，默认当前仓库'
+    required: false
+    default: ${{ github.repository }}
+  fallback-model:
+    description: '拿不到远端配置时使用的模型'
+    required: false
+    default: 'claude-opus-5-5'
+  fallback-effort:
+    description: '回退时、以及页面上思考等级为"默认"时使用的 --effort 值'
+    required: false
+    default: 'high'
+  fallback-provider-kind:
+    description: '回退时的服务商类型（claude-oauth | anthropic-compatible）'
+    required: false
+    default: 'claude-oauth'
+  fallback-secret-name:
+    description: '回退时使用的仓库 secret 名'
+    required: false
+    default: 'CLAUDE_CODE_OAUTH_TOKEN'
+  lane:
+    description: |
+      通道标识（如 glm、haiku-web、free-pool、mention）。留空 = 仓库级（Claude 主审那一路）；
+      填写后改为取该仓库下这一路 review 的配置——通道的凭据固定在各自 workflow 里，
+      PRboard 只管开关、模型、思考。
+    required: false
+    default: ''
+  lane-fallback-model:
+    description: |
+      通道模式下拿不到配置时使用的模型（独立于仓库级的 fallback-model）。
+      留空 = 输出空模型，让脚本使用自己内置的默认（免费池就是靠这个走默认池）。
+    required: false
+    default: ''
+  lane-fallback-thinking:
+    description: '通道模式下拿不到配置、或页面上思考为"默认"时输出的思考值；留空 = 不指定'
+    required: false
+    default: ''
+
+outputs:
+  enabled:
+    description: "'true' 运行 review；'false' 跳过"
+    value: ${{ steps.config.outputs.enabled }}
+  source:
+    description: "'remote'（PRboard 配置）或 'fallback'（内置默认）"
+    value: ${{ steps.config.outputs.source }}
+  reason:
+    description: 'enabled=false 时的原因：paused / disabled / no_provider / budget_exhausted'
+    value: ${{ steps.config.outputs.reason }}
+  provider-kind:
+    description: 'claude-oauth | anthropic-compatible'
+    value: ${{ steps.config.outputs.provider-kind }}
+  base-url:
+    description: '自定义端点（claude-oauth 与回退时为空）'
+    value: ${{ steps.config.outputs.base-url }}
+  secret-name:
+    description: '应读取的仓库 secret 名；调用方用 secrets[<name>] 取值'
+    value: ${{ steps.config.outputs.secret-name }}
+  model:
+    description: '--model 的值'
+    value: ${{ steps.config.outputs.model }}
+  effort:
+    description: '--effort 的值（仓库级）；通道模式下等同 thinking'
+    value: ${{ steps.config.outputs.effort }}
+  thinking:
+    description: '思考值：仓库级为 effort 档位；通道模式为该路自己的取值（如 GLM 的 off/on/max），可为空'
+    value: ${{ steps.config.outputs.thinking }}
+  kind:
+    description: "通道模式下该路的类型：claude-code / api-script；仓库级为空"
+    value: ${{ steps.config.outputs.kind }}
+  extra-args:
+    description: '附加的白名单 CLI 参数（空格分隔，可为空）'
+    value: ${{ steps.config.outputs.extra-args }}
+
+runs:
+  using: composite
+  steps:
+    - id: config
+      shell: bash
+      env:
+        PRBOARD_URL: ${{ inputs.prboard-url }}
+        TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        FALLBACK_MODEL: ${{ inputs.fallback-model }}
+        FALLBACK_EFFORT: ${{ inputs.fallback-effort }}
+        FALLBACK_KIND: ${{ inputs.fallback-provider-kind }}
+        FALLBACK_SECRET: ${{ inputs.fallback-secret-name }}
+        LANE: ${{ inputs.lane }}
+        LANE_FALLBACK_MODEL: ${{ inputs.lane-fallback-model }}
+        LANE_FALLBACK_THINKING: ${{ inputs.lane-fallback-thinking }}
+      run: bash "${{ github.action_path }}/run.sh"
