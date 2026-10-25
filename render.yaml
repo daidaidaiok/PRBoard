@@ -1,0 +1,49 @@
+# Render Blueprint：点击 README 中的 "Deploy to Render" 按钮即可一键创建
+# Web 服务与 Postgres 数据库。GitHub App 的凭据会在创建时提示填写（sync: false）。
+# 详细说明见 docs/DEPLOY.md。
+
+services:
+  - type: web
+    name: prboard
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    # 启动前执行迁移；drizzle-kit 在 devDependencies 中，npm ci 会安装它
+    preDeployCommand: npx drizzle-kit migrate
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: prboard-db
+          property: connectionString
+      # Render 提供的是直连串，SSE 的 LISTEN 可以直接使用
+      - key: DATABASE_URL_UNPOOLED
+        fromDatabase:
+          name: prboard-db
+          property: connectionString
+      - key: AUTH_SECRET
+        generateValue: true
+      # 首次部署后，把分配到的 https://<服务名>.onrender.com 填到这里
+      - key: AUTH_URL
+        sync: false
+      - key: GITHUB_APP_ID
+        sync: false
+      - key: GITHUB_APP_SLUG
+        sync: false
+      - key: GITHUB_APP_CLIENT_ID
+        sync: false
+      - key: GITHUB_APP_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_APP_PRIVATE_KEY
+        sync: false
+      - key: GITHUB_APP_WEBHOOK_SECRET
+        sync: false
+
+databases:
+  - name: prboard-db
+    plan: free
+    region: oregon

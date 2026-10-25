@@ -29,6 +29,20 @@ npm run dev
 
 浏览器打开 `http://localhost:3000`。完整的 GitHub App 权限、webhook 与数据库说明见 [docs/SETUP.md](docs/SETUP.md)，各平台的部署步骤见 [docs/DEPLOY.md](docs/DEPLOY.md)。
 
+## 部署
+
+### 一键部署到 Render（推荐新手）
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/daidaidaiok/PRBoard)
+
+点击按钮后，Render 会读取仓库根目录的 `render.yaml`，创建一个 Web 服务和一个 Postgres 数据库。创建时需要填写 GitHub App 的凭据（见 [SETUP.md 第 2、3 节](docs/SETUP.md)）。部署完成后，把分配到的 `https://<服务名>.onrender.com` 填入 `AUTH_URL`，并把 GitHub App 的回调与 webhook 地址改为这个域名。免费套餐的限制以 Render 当前文档为准。
+
+### 其他平台
+
+- **Coolify**：选择 Public Repository 或 GitHub App 作为来源，构建命令 `npm ci && npm run build`，启动命令 `npm run start`，端口 `3000`。
+- **VPS、Railway 等**：参考 [docs/DEPLOY.md](docs/DEPLOY.md)。
+- **Vercel**：不推荐，原因见 DEPLOY.md。
+
 ## GitHub App 权限
 
 仅授予以下最小权限：Metadata（只读）、Pull requests（读写）、Checks（只读）、Actions（读写）、Commit statuses（只读）和 Contents（读写，用于合并 PR）。App 只应安装到需要监控的仓库；`Contents: write` 和 `Actions: write` 允许执行真实写操作。
