@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Activity, Bell, Bot } from "lucide-react";
+import { Activity, Bell } from "lucide-react";
 
 export function AppHeader({ user }: { user: { login?: string | null; image?: string | null } }) {
   const login = user.login ?? "用户";
@@ -32,14 +32,6 @@ export function AppHeader({ user }: { user: { login?: string | null; image?: str
           className="inline-flex size-8 items-center justify-center rounded-lg border border-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <Bell className="size-4" />
-        </Link>
-        <Link
-          href="/settings/ai-review"
-          aria-label="AI Review 管理"
-          title="AI Review 管理"
-          className="inline-flex size-8 items-center justify-center rounded-lg border border-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <Bot className="size-4" />
         </Link>
         <Link
           href="/runners"

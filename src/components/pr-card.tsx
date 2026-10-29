@@ -20,6 +20,8 @@ import {
   Clock3,
   TriangleAlert,
   GitMerge,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 
 function rollupBadge(state: string | null) {
@@ -54,6 +56,21 @@ function rollupBadge(state: string | null) {
           无检查
         </Badge>
       );
+  }
+}
+
+function compactDotClass(state: string | null): string {
+  switch (state) {
+    case "success":
+      return "bg-emerald-600";
+    case "failure":
+    case "error":
+      return "bg-destructive";
+    case "pending":
+    case "expected":
+      return "bg-amber-500";
+    default:
+      return "bg-zinc-400";
   }
 }
 
@@ -164,6 +181,9 @@ function PrCardImpl({
   // so an idle card costs no renders and a card with no estimated running
   // check (or where the estimate rounded to 0s) never arms one.
   const [now, setNow] = useState(() => Date.now());
+  // Per-card compact view: a one-line summary instead of the full card. Local
+  // state on purpose — it resets on reload and never affects other cards.
+  const [compact, setCompact] = useState(false);
   const hasEstimatedCheckRunning = pr.checks.some(
     (check) => check.kind === "check_run" && check.status === "in_progress" && (check.durationEstimate?.seconds ?? 0) > 0,
   );
@@ -185,6 +205,31 @@ function PrCardImpl({
   const hasConflict = pr.mergeable === "CONFLICTING";
   const prProgress = pr.rollupState === "pending" ? computePrProgress(pr.checks, now) : null;
   const mergePending = pendingKey === `merge-${pr.id}`;
+
+  if (compact) {
+    return (
+      <Card
+        className={isReady ? "motion-safe:animate-ci-ready" : undefined}
+        onAnimationEnd={() => onReadyGlowEnd(pr.id)}
+      >
+        <div className="flex items-center gap-2 px-3 py-2 text-sm">
+          <span
+            aria-hidden="true"
+            className={`size-2 shrink-0 rounded-full ${compactDotClass(pr.rollupState)}`}
+          />
+          <a href={pr.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate font-medium hover:underline">
+            #{pr.number} {pr.title}
+          </a>
+          <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline" title={pr.repoFullName}>
+            {repoDisplayName}
+          </span>
+          <Button size="icon-xs" variant="ghost" aria-label="展开 PR 卡片" title="展开 PR 卡片" onClick={() => setCompact(false)}>
+            <Maximize2 />
+          </Button>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className={isReady ? "motion-safe:animate-ci-ready" : undefined}>
@@ -213,6 +258,9 @@ function PrCardImpl({
           </div>
         </div>
         <div className="flex items-center justify-between gap-2 sm:justify-end">
+          <Button size="icon-xs" variant="ghost" aria-label="收起为精简视图" title="收起为精简视图" onClick={() => setCompact(true)}>
+            <Minimize2 />
+          </Button>
           {rollupBadge(pr.rollupState)}
           {hasConflict ? (
             <Tooltip>
