@@ -277,7 +277,7 @@ export const userNotificationSettings = pgTable("user_notification_settings", {
 });
 
 /**
- * AI review 集中管理（/settings/ai-review）。各仓库 CI 用每仓库一个 token
+ * AI review 管理功能已移除，以下表保留但不再读写。各仓库 CI 用每仓库一个 token
  * 拉取配置、回报用量；服务商密钥只留在各仓库的 GitHub Secrets，这里只存
  * `secretName`（要用哪个 secret），任何表都不存密钥明文。
  */

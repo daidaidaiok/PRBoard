@@ -14,7 +14,7 @@ on:
     types: [created]
 
 permissions:
-  # 跟同目录 claude-review.yml 不一样:这里响应的是任意 @claude 请求(比如
+  # 跟此前已删除的 claude-review.yml 不一样:这里响应的是任意 @claude 请求(比如
   # "@claude fix this typo"),可能需要提交并 push 代码改动,contents: read
   # 不够用——@claude 尝试 push 时会因为权限不足失败,而不是干净地拒绝或跳过。
   contents: write
