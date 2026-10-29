@@ -208,7 +208,10 @@ function PrCardImpl({
 
   if (compact) {
     return (
-      <Card className={isReady ? "motion-safe:animate-ci-ready" : undefined}>
+      <Card
+        className={isReady ? "motion-safe:animate-ci-ready" : undefined}
+        onAnimationEnd={() => onReadyGlowEnd(pr.id)}
+      >
         <div className="flex items-center gap-2 px-3 py-2 text-sm">
           <span
             aria-hidden="true"
