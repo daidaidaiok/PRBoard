@@ -59,21 +59,6 @@ function rollupBadge(state: string | null) {
   }
 }
 
-function compactDotClass(state: string | null): string {
-  switch (state) {
-    case "success":
-      return "bg-emerald-600";
-    case "failure":
-    case "error":
-      return "bg-destructive";
-    case "pending":
-    case "expected":
-      return "bg-amber-500";
-    default:
-      return "bg-zinc-400";
-  }
-}
-
 export function prCanMerge(pr: PullRequestSummary): boolean {
   return pr.mergeable === "MERGEABLE" && pr.reviewDecision !== "REVIEW_REQUIRED" && pr.reviewDecision !== "CHANGES_REQUESTED";
 }
@@ -138,6 +123,8 @@ export function checkStatusMeta(check: CheckItem): {
 
 export interface PrCardProps {
   pr: PullRequestSummary;
+  compact: boolean;
+  onCompactChange: (prId: string, compact: boolean) => void;
   /** Pre-collapsed repo label (shared short-name logic lives in the parent). */
   repoDisplayName: string;
   /** Just became mergeable — drives the one-shot ready glow on card + button. */
@@ -166,6 +153,8 @@ export interface PrCardProps {
  */
 function PrCardImpl({
   pr,
+  compact,
+  onCompactChange,
   repoDisplayName,
   isReady,
   pendingKey,
@@ -181,9 +170,6 @@ function PrCardImpl({
   // so an idle card costs no renders and a card with no estimated running
   // check (or where the estimate rounded to 0s) never arms one.
   const [now, setNow] = useState(() => Date.now());
-  // Per-card compact view: a one-line summary instead of the full card. Local
-  // state on purpose — it resets on reload and never affects other cards.
-  const [compact, setCompact] = useState(false);
   const hasEstimatedCheckRunning = pr.checks.some(
     (check) => check.kind === "check_run" && check.status === "in_progress" && (check.durationEstimate?.seconds ?? 0) > 0,
   );
@@ -213,17 +199,14 @@ function PrCardImpl({
         onAnimationEnd={() => onReadyGlowEnd(pr.id)}
       >
         <div className="flex items-center gap-2 px-3 py-2 text-sm">
-          <span
-            aria-hidden="true"
-            className={`size-2 shrink-0 rounded-full ${compactDotClass(pr.rollupState)}`}
-          />
+          {rollupBadge(pr.rollupState)}
           <a href={pr.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate font-medium hover:underline">
             #{pr.number} {pr.title}
           </a>
           <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline" title={pr.repoFullName}>
             {repoDisplayName}
           </span>
-          <Button size="icon-xs" variant="ghost" aria-label="展开 PR 卡片" title="展开 PR 卡片" onClick={() => setCompact(false)}>
+          <Button size="icon-xs" variant="ghost" aria-label="展开 PR 卡片" title="展开 PR 卡片" onClick={() => onCompactChange(pr.id, false)}>
             <Maximize2 />
           </Button>
         </div>
@@ -258,7 +241,7 @@ function PrCardImpl({
           </div>
         </div>
         <div className="flex items-center justify-between gap-2 sm:justify-end">
-          <Button size="icon-xs" variant="ghost" aria-label="收起为精简视图" title="收起为精简视图" onClick={() => setCompact(true)}>
+          <Button size="icon-xs" variant="ghost" aria-label="收起为精简视图" title="收起为精简视图" onClick={() => onCompactChange(pr.id, true)}>
             <Minimize2 />
           </Button>
           {rollupBadge(pr.rollupState)}

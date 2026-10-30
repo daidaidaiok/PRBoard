@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RefreshCw, LoaderCircle, LayoutGrid, FolderGit2, History, RotateCcw, WifiOff } from "lucide-react";
+import { RefreshCw, LoaderCircle, LayoutGrid, FolderGit2, History, RotateCcw, WifiOff, Maximize2, Minimize2 } from "lucide-react";
 
 const ALL_PROJECTS = "__all__";
 
@@ -79,6 +79,17 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
   const [mergedPrIds, setMergedPrIds] = useState<Set<string>>(new Set());
   const [live, setLive] = useState(false);
   const [selectedProject, setSelectedProject] = useState<string>(ALL_PROJECTS);
+  // Bulk choices apply across projects and to newly arriving PRs; individual
+  // choices survive project switches and background refreshes for this session.
+  const [defaultCompact, setDefaultCompact] = useState(false);
+  const [compactOverrides, setCompactOverrides] = useState<Record<string, boolean>>({});
+  const handleCompactChange = useCallback((prId: string, compact: boolean) => {
+    setCompactOverrides((prev) => ({ ...prev, [prId]: compact }));
+  }, []);
+  const setAllCompact = (compact: boolean) => {
+    setDefaultCompact(compact);
+    setCompactOverrides({});
+  };
   // Set when the server served the last-good snapshot because GitHub was
   // unreachable — the board still renders, but must say it's not live.
   const [staleCapturedAt, setStaleCapturedAt] = useState<string | null>(null);
@@ -454,8 +465,8 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-sm font-medium text-muted-foreground">
             {prs === null ? "加载中…" : `${displayPrs?.length ?? 0} 个待处理 PR`}
           </h2>
@@ -473,10 +484,22 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
             </span>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={() => fetchPrs()} disabled={refreshing}>
-          <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
-          刷新
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div role="group" aria-label="PR 卡片展示" className="flex items-center gap-1">
+            <Button variant="outline" size="sm" onClick={() => setAllCompact(false)} disabled={!displayPrs?.length}>
+              <Maximize2 className="size-3.5" />
+              全部展开
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setAllCompact(true)} disabled={!displayPrs?.length}>
+              <Minimize2 className="size-3.5" />
+              全部折叠
+            </Button>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => fetchPrs()} disabled={refreshing}>
+            <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
+            刷新
+          </Button>
+        </div>
       </div>
 
       {!online && (
@@ -557,6 +580,8 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
           <PrCard
             key={pr.id}
             pr={pr}
+            compact={compactOverrides[pr.id] ?? defaultCompact}
+            onCompactChange={handleCompactChange}
             repoDisplayName={repoDisplayNames.get(pr.repoFullName) ?? pr.repoFullName}
             isReady={readyPrs.has(pr.id)}
             pendingKey={pendingKey}
