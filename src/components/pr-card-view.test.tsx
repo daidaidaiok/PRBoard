@@ -32,10 +32,16 @@ describe("compact PR status", () => {
   });
 });
 
-it("wires both bulk controls and controlled cards without remounting", () => {
+it("wires one icon toggle and controlled cards without remounting", () => {
   const source = readFileSync("src/components/dashboard.tsx", "utf8");
-  expect(source).toContain("全部展开");
-  expect(source).toContain("全部折叠");
+  const toolbarStart = source.indexOf('aria-label="PR 卡片展示"');
+  const toolbar = source.slice(toolbarStart, source.indexOf("</div>", toolbarStart));
+  expect(toolbar.match(/<Button\b/g)).toHaveLength(1);
+  expect(toolbar).toContain('size="icon-sm"');
+  expect(toolbar).toContain('aria-label={allCompact ? "全部展开" : "全部折叠"}');
+  expect(toolbar).toContain('title={allCompact ? "全部展开" : "全部折叠"}');
+  expect(toolbar).toContain('onClick={() => setAllCompact(!allCompact)}');
+  expect(source).toContain('displayPrs.every((pr) => compactOverrides[pr.id] ?? defaultCompact)');
   expect(source).toContain("compact={");
   expect(source).toContain("onCompactChange={handleCompactChange}");
   expect(source).toContain("key={pr.id}");

@@ -449,6 +449,8 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
     return { projectCounts: counts, projects: sortedProjects, activeProject: active, visiblePrs: visible, displayPrs: list, repoDisplayNames: displayNames };
   }, [prs, selectedProject, mergedPrIds]);
 
+  const allCompact = !!displayPrs?.length && displayPrs.every((pr) => compactOverrides[pr.id] ?? defaultCompact);
+
   if (!hasInstallation) {
     return (
       <main className="flex flex-1 items-center justify-center p-6">
@@ -486,13 +488,15 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div role="group" aria-label="PR 卡片展示" className="flex items-center gap-1">
-            <Button variant="outline" size="sm" onClick={() => setAllCompact(false)} disabled={!displayPrs?.length}>
-              <Maximize2 className="size-3.5" />
-              全部展开
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setAllCompact(true)} disabled={!displayPrs?.length}>
-              <Minimize2 className="size-3.5" />
-              全部折叠
+            <Button
+              variant="outline"
+              size="icon-sm"
+              aria-label={allCompact ? "全部展开" : "全部折叠"}
+              title={allCompact ? "全部展开" : "全部折叠"}
+              onClick={() => setAllCompact(!allCompact)}
+              disabled={!displayPrs?.length}
+            >
+              {allCompact ? <Maximize2 className="size-3.5" /> : <Minimize2 className="size-3.5" />}
             </Button>
           </div>
           <Button variant="outline" size="sm" onClick={() => fetchPrs()} disabled={refreshing}>
