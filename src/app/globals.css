@@ -109,30 +109,30 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --background: oklch(0.93 0.02 240);
+  --foreground: oklch(0.2 0.02 250);
+  --card: oklch(1 0 0 / 55%);
+  --card-foreground: oklch(0.2 0.02 250);
+  --popover: oklch(1 0 0 / 72%);
+  --popover-foreground: oklch(0.2 0.02 250);
+  --primary: oklch(0.28 0.04 250);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.96 0.01 240);
+  --secondary-foreground: oklch(0.28 0.04 250);
+  --muted: oklch(0.95 0.01 240);
+  --muted-foreground: oklch(0.5 0.02 250);
+  --accent: oklch(0.95 0.02 230);
+  --accent-foreground: oklch(0.28 0.04 250);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(1 0 0 / 55%);
+  --input: oklch(1 0 0 / 55%);
+  --ring: oklch(0.62 0.08 230);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
+  --radius: 0.9rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -144,24 +144,24 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.18 0.03 250);
+  --foreground: oklch(0.97 0.01 240);
+  --card: oklch(0.24 0.03 250 / 55%);
+  --card-foreground: oklch(0.97 0.01 240);
+  --popover: oklch(0.22 0.03 250 / 72%);
+  --popover-foreground: oklch(0.97 0.01 240);
+  --primary: oklch(0.92 0.01 240);
+  --primary-foreground: oklch(0.22 0.03 250);
+  --secondary: oklch(0.28 0.03 250);
+  --secondary-foreground: oklch(0.97 0.01 240);
+  --muted: oklch(0.28 0.03 250);
+  --muted-foreground: oklch(0.72 0.02 240);
+  --accent: oklch(0.3 0.04 250);
+  --accent-foreground: oklch(0.97 0.01 240);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
+  --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.62 0.1 230);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -182,9 +182,27 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply relative isolate min-h-full bg-background text-foreground;
+    background-image:
+      radial-gradient(ellipse 55% 45% at 12% 8%, color-mix(in oklab, #7eb6ff 42%, transparent), transparent 70%),
+      radial-gradient(ellipse 50% 40% at 88% 18%, color-mix(in oklab, #8fd4c2 36%, transparent), transparent 70%),
+      radial-gradient(ellipse 55% 45% at 48% 92%, color-mix(in oklab, #9bb6ff 28%, transparent), transparent 72%);
+    background-attachment: fixed;
+  }
+  .dark body,
+  :is(.dark) body {
+    background-image:
+      radial-gradient(ellipse 55% 45% at 12% 8%, color-mix(in oklab, #1d4ed8 28%, transparent), transparent 70%),
+      radial-gradient(ellipse 50% 40% at 88% 18%, color-mix(in oklab, #0f766e 22%, transparent), transparent 70%),
+      radial-gradient(ellipse 55% 45% at 48% 92%, color-mix(in oklab, #4338ca 18%, transparent), transparent 72%);
   }
   html {
     @apply font-sans;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply border border-white/50 bg-white/35 shadow-[0_10px_30px_rgba(15,23,42,0.06)] backdrop-blur-[22px] dark:border-white/12 dark:bg-white/[0.07] dark:shadow-[0_10px_30px_rgba(0,0,0,0.28)];
   }
 }
