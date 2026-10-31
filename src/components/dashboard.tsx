@@ -19,9 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ProjectSwitcher } from "@/components/project-switcher";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RefreshCw, LoaderCircle, LayoutGrid, FolderGit2, History, RotateCcw, WifiOff, Maximize2, Minimize2 } from "lucide-react";
+import { RefreshCw, LoaderCircle, History, RotateCcw, WifiOff, Maximize2, Minimize2 } from "lucide-react";
 
 const ALL_PROJECTS = "__all__";
 
@@ -48,7 +48,7 @@ function repoShortName(fullName: string): string {
 /** First-paint placeholder while the very first fetch is in flight — the localStorage preload usually covers this instead. */
 function PrCardSkeleton() {
   return (
-    <Card aria-hidden="true">
+    <Card aria-hidden="true" className="glass-panel">
       <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="flex flex-1 flex-col gap-2">
           <Skeleton className="h-3 w-28" />
@@ -79,6 +79,7 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
   const [mergedPrIds, setMergedPrIds] = useState<Set<string>>(new Set());
   const [live, setLive] = useState(false);
   const [selectedProject, setSelectedProject] = useState<string>(ALL_PROJECTS);
+  const [projectSwitcherOpen, setProjectSwitcherOpen] = useState(false);
   // Bulk choices apply across projects and to newly arriving PRs; individual
   // choices survive project switches and background refreshes for this session.
   const [defaultCompact, setDefaultCompact] = useState(false);
@@ -451,10 +452,27 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
 
   const allCompact = !!displayPrs?.length && displayPrs.every((pr) => compactOverrides[pr.id] ?? defaultCompact);
 
+  const projectSwitcherOptions = useMemo(() => {
+    const options = [
+      {
+        id: ALL_PROJECTS,
+        label: "全部",
+        count: displayPrs?.length ?? 0,
+      },
+      ...projects.map((project) => ({
+        id: project,
+        label: repoDisplayNames.get(project) ?? project,
+        count: projectCounts.get(project) ?? 0,
+        title: project,
+      })),
+    ];
+    return options;
+  }, [displayPrs?.length, projects, repoDisplayNames, projectCounts]);
+
   if (!hasInstallation) {
     return (
       <main className="flex flex-1 items-center justify-center p-6">
-        <Card className="max-w-lg">
+        <Card className="glass-panel max-w-lg">
           <CardHeader><h2 className="text-xl font-semibold">先安装 GitHub App</h2></CardHeader>
           <CardContent className="space-y-4 text-sm text-muted-foreground">
             <p>安装后选择要查看的仓库，PRboard 只会读取你授权的个人仓库。</p>
@@ -465,12 +483,18 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
     );
   }
 
+  const showProjectSwitcher = projects.length > 1;
+
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className={`flex flex-1 flex-col gap-4 p-4 sm:p-6 ${showProjectSwitcher ? "pb-28" : ""}`}>
+      <div className="glass-panel flex flex-wrap items-center justify-between gap-3 rounded-[22px] px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-sm font-medium text-muted-foreground">
-            {prs === null ? "加载中…" : `${displayPrs?.length ?? 0} 个待处理 PR`}
+            {prs === null
+              ? "加载中…"
+              : `${visiblePrs?.length ?? 0} 个待处理 PR${
+                  activeProject === ALL_PROJECTS ? "" : ` · ${repoDisplayNames.get(activeProject) ?? activeProject}`
+                }`}
           </h2>
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className={`size-1.5 rounded-full ${live ? "bg-emerald-500" : "bg-zinc-400"}`} />
@@ -495,11 +519,18 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
               title={allCompact ? "全部展开" : "全部折叠"}
               onClick={() => setAllCompact(!allCompact)}
               disabled={!displayPrs?.length}
+              className="border-white/50 bg-white/35 backdrop-blur-md dark:border-white/10 dark:bg-white/10"
             >
               {allCompact ? <Maximize2 className="size-3.5" /> : <Minimize2 className="size-3.5" />}
             </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={() => fetchPrs()} disabled={refreshing}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchPrs()}
+            disabled={refreshing}
+            className="border-white/50 bg-white/35 backdrop-blur-md dark:border-white/10 dark:bg-white/10"
+          >
             <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
             刷新
           </Button>
@@ -507,7 +538,7 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
       </div>
 
       {!online && (
-        <Card className="border-amber-500/40 bg-amber-500/5">
+        <Card className="glass-panel border-amber-500/40 bg-amber-500/10">
           <CardContent className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
             <WifiOff className="size-4 flex-none" />
             网络已断开——显示的是最近一次加载的数据，恢复连接后会自动刷新。
@@ -515,44 +546,8 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
         </Card>
       )}
 
-      {projects.length > 1 && (
-        <Tabs value={activeProject} onValueChange={setSelectedProject}>
-          <TabsList
-            draggable={false}
-            className="max-w-full justify-start gap-1 overflow-x-auto rounded-xl border bg-muted/60 p-1 shadow-inner select-none group-data-horizontal/tabs:h-11 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden dark:bg-muted/40"
-          >
-            <TabsTrigger
-              value={ALL_PROJECTS}
-              draggable={false}
-              className="group/project-tab h-9 flex-none rounded-lg px-3 py-1.5 select-none transition-[color,background-color,border-color,box-shadow] duration-200 hover:bg-background/60 data-active:border-border/70 data-active:bg-background data-active:shadow-sm dark:data-active:bg-background/80"
-            >
-              <LayoutGrid data-icon="inline-start" />
-              全部
-              <span className="min-w-5 rounded-full bg-background/80 px-1.5 py-0.5 text-center text-[11px] leading-none tabular-nums shadow-xs transition-colors group-data-active/project-tab:bg-primary group-data-active/project-tab:text-primary-foreground dark:bg-background/40">
-                {displayPrs?.length ?? 0}
-              </span>
-            </TabsTrigger>
-            {projects.map((project) => (
-              <TabsTrigger
-                key={project}
-                value={project}
-                title={project}
-                draggable={false}
-                className="group/project-tab h-9 flex-none rounded-lg px-3 py-1.5 select-none transition-[color,background-color,border-color,box-shadow] duration-200 hover:bg-background/60 data-active:border-border/70 data-active:bg-background data-active:shadow-sm dark:data-active:bg-background/80"
-              >
-                <FolderGit2 data-icon="inline-start" />
-                {repoDisplayNames.get(project)}
-                <span className="min-w-5 rounded-full bg-background/80 px-1.5 py-0.5 text-center text-[11px] leading-none tabular-nums shadow-xs transition-colors group-data-active/project-tab:bg-primary group-data-active/project-tab:text-primary-foreground dark:bg-background/40">
-                  {projectCounts.get(project)}
-                </span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-      )}
-
       {error && (
-        <Card className="border-destructive/50">
+        <Card className="glass-panel border-destructive/50">
           <CardContent className="flex items-center justify-between gap-3 text-sm text-destructive">
             <span className="min-w-0 break-words">加载失败：{error}</span>
             <Button size="sm" variant="outline" className="flex-none" onClick={() => fetchPrs()} disabled={refreshing}>
@@ -564,7 +559,7 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
       )}
 
       {displayPrs !== null && displayPrs.length === 0 && !error && (
-        <Card>
+        <Card className="glass-panel">
           <CardContent className="text-sm text-muted-foreground">
             没有打开中的 PR。已监控的仓库列表来自 GitHub App 的安装范围，去仓库设置里增减安装的仓库会自动同步。
           </CardContent>
@@ -600,8 +595,19 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
         ))}
       </div>
 
+      {showProjectSwitcher && (
+        <ProjectSwitcher
+          open={projectSwitcherOpen}
+          onOpenChange={setProjectSwitcherOpen}
+          value={activeProject}
+          onValueChange={setSelectedProject}
+          options={projectSwitcherOptions}
+          allId={ALL_PROJECTS}
+        />
+      )}
+
       <Dialog open={mergeTarget !== null} onOpenChange={(open) => !open && !pendingKey?.startsWith("merge-") && setMergeTarget(null)}>
-        <DialogContent>
+        <DialogContent className="glass-panel border-white/50 dark:border-white/15">
           <DialogHeader>
             <DialogTitle>确认合并</DialogTitle>
             <DialogDescription>

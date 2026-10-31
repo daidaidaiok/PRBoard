@@ -147,7 +147,7 @@ export function DesignPreview() {
           </p>
           <h1 className="mt-1 text-[22px] font-semibold tracking-tight">PRboard · iOS 毛玻璃方案</h1>
           <p className="mt-1.5 text-[13px] leading-relaxed text-slate-600 dark:text-slate-300">
-            下面是手机/平板感的假界面。项目切换放在底部，你可以先点上方三种形式对比，再告诉我喜欢哪一种。
+            已选定「底部弹出选择」，正式看板也按这个方案改了。下面仍可对比三种形式。
           </p>
 
           <div className="mt-3 grid gap-2">
