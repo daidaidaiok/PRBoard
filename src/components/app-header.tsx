@@ -18,10 +18,10 @@ import { Activity, Bell } from "lucide-react";
 export function AppHeader({ user }: { user: { login?: string | null; image?: string | null } }) {
   const login = user.login ?? "用户";
   return (
-    <header className="flex items-center justify-between border-b px-6 py-4">
+    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-white/40 bg-white/35 px-6 py-3.5 backdrop-blur-[28px] dark:border-white/10 dark:bg-[#0b1220]/55">
       <div className="flex items-center gap-2">
         <Image src="/icons/icon-192.png" alt="" width={24} height={24} className="rounded-md" />
-        <h1 className="text-lg font-semibold">PRboard</h1>
+        <h1 className="text-lg font-semibold tracking-tight">PRboard</h1>
       </div>
       <div className="flex items-center gap-2">
         <ThemeToggle />
@@ -29,7 +29,7 @@ export function AppHeader({ user }: { user: { login?: string | null; image?: str
           href="/settings/notifications"
           aria-label="通知设置"
           title="通知设置"
-          className="inline-flex size-8 items-center justify-center rounded-lg border border-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="inline-flex size-8 items-center justify-center rounded-full border border-white/40 bg-white/35 text-muted-foreground backdrop-blur-md transition-colors hover:bg-white/55 hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:border-white/10 dark:bg-white/10 dark:hover:bg-white/15"
         >
           <Bell className="size-4" />
         </Link>
@@ -37,7 +37,7 @@ export function AppHeader({ user }: { user: { login?: string | null; image?: str
           href="/runners"
           aria-label="Runner 监控"
           title="Runner 监控"
-          className="inline-flex size-8 items-center justify-center rounded-lg border border-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="inline-flex size-8 items-center justify-center rounded-full border border-white/40 bg-white/35 text-muted-foreground backdrop-blur-md transition-colors hover:bg-white/55 hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:border-white/10 dark:bg-white/10 dark:hover:bg-white/15"
         >
           <Activity className="size-4" />
         </Link>

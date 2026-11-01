@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function Loading() {
   return (
     <div className="flex flex-1 flex-col" aria-busy="true">
-      <header className="flex items-center justify-between border-b px-6 py-4">
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-white/40 bg-white/35 px-6 py-3.5 backdrop-blur-[28px] dark:border-white/10 dark:bg-[#0b1220]/55">
         <Skeleton className="h-7 w-36" />
         <Skeleton className="size-7 rounded-full" />
       </header>
