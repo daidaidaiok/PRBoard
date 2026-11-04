@@ -141,7 +141,7 @@ export function DesignPreview() {
 
       <div className="relative mx-auto flex min-h-dvh max-w-lg flex-col px-4 pb-[7.5rem] pt-4 sm:max-w-xl sm:px-5">
         {/* Intro banner */}
-        <div className="mb-4 rounded-[22px] border border-white/60 bg-white/35 p-4 shadow-[0_8px_30px_rgba(15,23,42,0.08)] backdrop-blur-[28px] dark:border-white/15 dark:bg-white/[0.08] dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)]">
+        <div className="mb-4 rounded-2xl border border-white/60 bg-white/35 p-4 shadow-[0_8px_30px_rgba(15,23,42,0.08)] backdrop-blur-[28px] dark:border-white/15 dark:bg-white/[0.08] dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)]">
           <p className="text-[11px] font-medium tracking-[0.14em] text-slate-500 uppercase dark:text-slate-400">
             设计预览 · 不接真实数据
           </p>
@@ -178,7 +178,7 @@ export function DesignPreview() {
         </div>
 
         {/* Phone-like stage */}
-        <div className="relative flex min-h-[72vh] flex-1 flex-col overflow-hidden rounded-[28px] border border-white/60 bg-white/25 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-[32px] dark:border-white/15 dark:bg-[#111827]/45 dark:shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
+        <div className="relative flex min-h-[72vh] flex-1 flex-col overflow-hidden rounded-3xl border border-white/60 bg-white/25 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-[32px] dark:border-white/15 dark:bg-[#111827]/45 dark:shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
           {/* Top glass bar */}
           <header className="sticky top-0 z-10 flex items-center justify-between border-b border-white/45 bg-white/30 px-4 py-3 backdrop-blur-[28px] dark:border-white/10 dark:bg-white/[0.06]">
             <div className="flex items-center gap-2">
@@ -221,7 +221,7 @@ export function DesignPreview() {
             {visiblePrs.map((pr) => (
               <article
                 key={pr.id}
-                className="rounded-[22px] border border-white/55 bg-white/28 p-3.5 shadow-[0_10px_30px_rgba(15,23,42,0.06)] backdrop-blur-[22px] dark:border-white/12 dark:bg-white/[0.07] dark:shadow-none"
+                className="rounded-2xl border border-white/55 bg-white/28 p-3.5 shadow-[0_10px_30px_rgba(15,23,42,0.06)] backdrop-blur-[22px] dark:border-white/12 dark:bg-white/[0.07] dark:shadow-none"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -265,7 +265,7 @@ export function DesignPreview() {
           {/* Bottom project switcher */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-3 pb-4">
             {navMode === "dock" && (
-              <nav className="pointer-events-auto mx-auto flex max-w-md items-stretch justify-between gap-1 rounded-[24px] border border-white/65 bg-white/40 px-2 py-2 shadow-[0_12px_40px_rgba(15,23,42,0.16)] backdrop-blur-[30px] dark:border-white/15 dark:bg-[#0f172a]/55">
+              <nav className="pointer-events-auto mx-auto flex max-w-md items-stretch justify-between gap-1 rounded-2xl border border-white/65 bg-white/40 px-2 py-2 shadow-[0_12px_40px_rgba(15,23,42,0.16)] backdrop-blur-[30px] dark:border-white/15 dark:bg-[#0f172a]/55">
                 {PROJECTS.map((project) => {
                   const active = project.id === projectId;
                   const Icon = project.id === "all" ? LayoutGrid : FolderGit2;
@@ -329,7 +329,7 @@ export function DesignPreview() {
             {navMode === "sheet" && (
               <div className="pointer-events-auto mx-auto max-w-md">
                 {sheetOpen && (
-                  <div className="mb-2 overflow-hidden rounded-[22px] border border-white/65 bg-white/45 shadow-[0_12px_40px_rgba(15,23,42,0.16)] backdrop-blur-[30px] dark:border-white/15 dark:bg-[#0f172a]/65">
+                  <div className="mb-2 overflow-hidden rounded-2xl border border-white/65 bg-white/45 shadow-[0_12px_40px_rgba(15,23,42,0.16)] backdrop-blur-[30px] dark:border-white/15 dark:bg-[#0f172a]/65">
                     {PROJECTS.map((project) => {
                       const active = project.id === projectId;
                       return (
@@ -356,7 +356,7 @@ export function DesignPreview() {
                 <button
                   type="button"
                   onClick={() => setSheetOpen((open) => !open)}
-                  className="flex w-full items-center justify-between rounded-[22px] border border-white/65 bg-white/40 px-4 py-3 shadow-[0_12px_40px_rgba(15,23,42,0.16)] backdrop-blur-[30px] dark:border-white/15 dark:bg-[#0f172a]/55"
+                  className="flex w-full items-center justify-between rounded-2xl border border-white/65 bg-white/40 px-4 py-3 shadow-[0_12px_40px_rgba(15,23,42,0.16)] backdrop-blur-[30px] dark:border-white/15 dark:bg-[#0f172a]/55"
                 >
                   <span className="flex items-center gap-2 text-[14px] font-semibold">
                     <FolderGit2 className="size-4 text-sky-600 dark:text-sky-300" />

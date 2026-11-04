@@ -487,7 +487,7 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
 
   return (
     <div className={`flex flex-1 flex-col gap-4 p-4 sm:p-6 ${showProjectSwitcher ? "pb-28" : ""}`}>
-      <div className="glass-panel flex flex-wrap items-center justify-between gap-3 rounded-[22px] px-4 py-3">
+      <div className="glass-panel flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-sm font-medium text-muted-foreground">
             {prs === null
