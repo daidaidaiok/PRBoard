@@ -50,7 +50,7 @@ export function ThemeToggle() {
             aria-label={label}
             title={label}
             onClick={cycle}
-            className="size-8 rounded-lg text-muted-foreground hover:text-foreground"
+            className="size-8 pointer-coarse:size-11 rounded-lg text-muted-foreground hover:text-foreground"
           />
         }
       >
