@@ -66,7 +66,7 @@ export function ProjectSwitcher({
             id={listId}
             role="listbox"
             aria-label="选择项目"
-            className="mb-2 max-h-[min(50vh,22rem)] overflow-y-auto rounded-[22px] border border-white/55 bg-white/45 shadow-[0_12px_40px_rgba(15,23,42,0.16)] backdrop-blur-[30px] dark:border-white/15 dark:bg-[#0f172a]/65 dark:shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
+            className="mb-2 max-h-[min(50vh,22rem)] overflow-y-auto rounded-2xl border border-white/55 bg-white/45 shadow-[0_12px_40px_rgba(15,23,42,0.16)] backdrop-blur-[30px] dark:border-white/15 dark:bg-[#0f172a]/65 dark:shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
           >
             {options.map((option) => {
               const selected = option.id === value;
@@ -107,7 +107,7 @@ export function ProjectSwitcher({
           aria-expanded={open}
           aria-controls={open ? listId : undefined}
           onClick={() => onOpenChange(!open)}
-          className="flex w-full items-center justify-between rounded-[22px] border border-white/60 bg-white/45 px-4 py-3 shadow-[0_12px_40px_rgba(15,23,42,0.16)] backdrop-blur-[30px] dark:border-white/15 dark:bg-[#0f172a]/65 dark:shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
+          className="flex w-full items-center justify-between rounded-2xl border border-white/60 bg-white/45 px-4 py-3 shadow-[0_12px_40px_rgba(15,23,42,0.16)] backdrop-blur-[30px] dark:border-white/15 dark:bg-[#0f172a]/65 dark:shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
         >
           <span className="flex min-w-0 items-center gap-2">
             {active?.id === allId ? (

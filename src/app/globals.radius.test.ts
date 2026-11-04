@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -30,5 +30,31 @@ describe("iOS-aligned radius scale", () => {
   it("keeps the base --radius at 0.9rem (sonner toast and button clamps depend on it)", () => {
     const base = css.match(/(?<![\w-])--radius:\s*([^;]+);/);
     expect(base?.[1]?.trim()).toBe("0.9rem");
+  });
+});
+
+// Corner radii must come from the token scale above; hardcoded rounded-[Npx]
+// bypassed it during the glass redesign and left the family inconsistent.
+// Allowlist: rounded-[2px] (deliberate hairline fill), rounded-[min(…)]
+// (token clamps in button.tsx).
+const sourceFiles = (function walk(dir: string): string[] {
+  return readdirSync(dir).flatMap((entry) => {
+    const path = resolve(dir, entry);
+    if (statSync(path).isDirectory()) return walk(path);
+    return /\.(tsx|ts|css)$/.test(path) && !path.endsWith("globals.radius.test.ts") ? [path] : [];
+  });
+})(resolve(process.cwd(), "src"));
+
+describe("no hardcoded corner radii outside the token scale", () => {
+  it("routes every non-trivial radius through a rounded-* token utility", () => {
+    const offenders = sourceFiles.flatMap((file) =>
+      (readFileSync(file, "utf8").match(/rounded(?:-(?:t|b|l|r|tl|tr|bl|br|s|e))?-\[[^\]]+\]/g) ?? [])
+        .filter((hit) => {
+          const value = hit.match(/\[([^\]]+)\]$/)?.[1] ?? "";
+          return /^\d+(\.\d+)?(px|rem)$/.test(value) && value !== "2px";
+        })
+        .map((hit) => `${file}: ${hit}`),
+    );
+    expect(offenders).toEqual([]);
   });
 });
