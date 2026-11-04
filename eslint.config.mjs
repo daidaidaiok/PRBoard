@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Worktree / session artifacts from parallel agent sessions.
+    ".claude/**",
   ]),
 ]);
 

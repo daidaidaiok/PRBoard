@@ -47,11 +47,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           {`(() => {
   let mode = "auto";
   try { mode = localStorage.getItem("${THEME_MODE_STORAGE_KEY}") || "auto"; } catch (e) {}
-  if (mode !== "auto" && mode !== "light" && mode !== "dark") mode = "auto";
+  if (mode !== "auto" && mode !== "light" && mode !== "dark" && mode !== "eink") mode = "auto";
+  const eink = mode === "eink";
   const hour = new Date().getHours();
-  const dark = mode === "dark" || (mode === "auto" && (hour >= ${NIGHT_MODE_START_HOUR} || hour < ${NIGHT_MODE_END_HOUR}));
+  const dark = !eink && (mode === "dark" || (mode === "auto" && (hour >= ${NIGHT_MODE_START_HOUR} || hour < ${NIGHT_MODE_END_HOUR})));
   const root = document.documentElement;
   root.classList.toggle("dark", dark);
+  root.classList.toggle("eink", eink);
   root.style.colorScheme = dark ? "dark" : "light";
   const themeColor = document.querySelector('meta[name="theme-color"]');
   themeColor?.setAttribute("content", dark ? "#0a0a0a" : "#ffffff");

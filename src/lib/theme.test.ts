@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { isNightMode, readThemeMode, resolveDark, writeThemeMode, NEXT_THEME_MODE, type ThemeStorage } from "@/lib/theme";
+import {
+  applyTheme,
+  isNightMode,
+  readThemeMode,
+  resolveDark,
+  writeThemeMode,
+  NEXT_THEME_MODE,
+  THEME_CHANGE_EVENT,
+  type ThemeStorage,
+} from "@/lib/theme";
 
 describe("isNightMode", () => {
   it("uses the night window from 18:00 through 05:59", () => {
@@ -38,6 +47,12 @@ describe("theme mode persistence", () => {
     writeThemeMode("light", storage);
     expect(readThemeMode(storage)).toBe("light");
   });
+
+  it("round-trips an explicit eink override", () => {
+    const storage = new MemoryStorage();
+    writeThemeMode("eink", storage);
+    expect(readThemeMode(storage)).toBe("eink");
+  });
 });
 
 describe("resolveDark", () => {
@@ -53,12 +68,66 @@ describe("resolveDark", () => {
     expect(resolveDark("light", night)).toBe(false);
     expect(resolveDark("dark", noon)).toBe(true);
   });
+
+  it("never goes dark in eink mode", () => {
+    expect(resolveDark("eink", night)).toBe(false);
+  });
 });
 
 describe("NEXT_THEME_MODE", () => {
-  it("cycles auto → light → dark → auto", () => {
+  it("cycles auto → light → dark → eink → auto", () => {
     expect(NEXT_THEME_MODE.auto).toBe("light");
     expect(NEXT_THEME_MODE.light).toBe("dark");
-    expect(NEXT_THEME_MODE.dark).toBe("auto");
+    expect(NEXT_THEME_MODE.dark).toBe("eink");
+    expect(NEXT_THEME_MODE.eink).toBe("auto");
+  });
+});
+
+function fakeRoot() {
+  const toggled: Array<[string, boolean]> = [];
+  const root = {
+    classList: {
+      toggle: (name: string, force?: boolean) => {
+        toggled.push([name, force ?? false]);
+      },
+    },
+    style: {} as CSSStyleDeclaration,
+    ownerDocument: undefined,
+  };
+  return { root: root as unknown as HTMLElement, toggled };
+}
+
+describe("applyTheme", () => {
+  const noon = new Date(2026, 0, 1, 12, 0);
+
+  it("applies the eink class instead of dark", () => {
+    const { root, toggled } = fakeRoot();
+    applyTheme(root, "eink", noon);
+    expect(toggled).toContainEqual(["eink", true]);
+    expect(toggled).toContainEqual(["dark", false]);
+    expect(root.style.colorScheme).toBe("light");
+  });
+
+  it("removes the eink class when switching back to dark", () => {
+    const { root, toggled } = fakeRoot();
+    applyTheme(root, "dark", noon);
+    expect(toggled).toContainEqual(["eink", false]);
+    expect(toggled).toContainEqual(["dark", true]);
+    expect(root.style.colorScheme).toBe("dark");
+  });
+
+  it("dispatches a theme-change event in the browser", () => {
+    const events: string[] = [];
+    const target = new EventTarget();
+    target.addEventListener(THEME_CHANGE_EVENT, (event) => events.push(event.type));
+    const originalWindow = globalThis.window;
+    (globalThis as { window?: unknown }).window = target;
+    try {
+      const { root } = fakeRoot();
+      applyTheme(root, "eink", noon);
+      expect(events).toEqual([THEME_CHANGE_EVENT]);
+    } finally {
+      (globalThis as { window?: unknown }).window = originalWindow;
+    }
   });
 });

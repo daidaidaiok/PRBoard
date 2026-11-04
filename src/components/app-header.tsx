@@ -29,7 +29,7 @@ export function AppHeader({ user }: { user: { login?: string | null; image?: str
           href="/settings/notifications"
           aria-label="通知设置"
           title="通知设置"
-          className="inline-flex size-8 items-center justify-center rounded-full border border-white/40 bg-white/35 text-muted-foreground backdrop-blur-md transition-colors hover:bg-white/55 hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:border-white/10 dark:bg-white/10 dark:hover:bg-white/15"
+          className="inline-flex size-8 pointer-coarse:size-11 items-center justify-center rounded-full border border-white/40 bg-white/35 text-muted-foreground backdrop-blur-md transition-colors hover:bg-white/55 hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:border-white/10 dark:bg-white/10 dark:hover:bg-white/15"
         >
           <Bell className="size-4" />
         </Link>
@@ -37,7 +37,7 @@ export function AppHeader({ user }: { user: { login?: string | null; image?: str
           href="/runners"
           aria-label="Runner 监控"
           title="Runner 监控"
-          className="inline-flex size-8 items-center justify-center rounded-full border border-white/40 bg-white/35 text-muted-foreground backdrop-blur-md transition-colors hover:bg-white/55 hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:border-white/10 dark:bg-white/10 dark:hover:bg-white/15"
+          className="inline-flex size-8 pointer-coarse:size-11 items-center justify-center rounded-full border border-white/40 bg-white/35 text-muted-foreground backdrop-blur-md transition-colors hover:bg-white/55 hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:border-white/10 dark:bg-white/10 dark:hover:bg-white/15"
         >
           <Activity className="size-4" />
         </Link>

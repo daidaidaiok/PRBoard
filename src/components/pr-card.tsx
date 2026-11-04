@@ -241,7 +241,7 @@ function PrCardImpl({
           </div>
         </div>
         <div className="flex items-center justify-between gap-2 sm:justify-end">
-          <Button size="icon-xs" variant="ghost" aria-label="收起为精简视图" title="收起为精简视图" onClick={() => onCompactChange(pr.id, true)}>
+          <Button size="icon-xs" variant="ghost" aria-label="收起为精简视图" title="收起为精简视图" className="pointer-coarse:size-8" onClick={() => onCompactChange(pr.id, true)}>
             <Minimize2 />
           </Button>
           {rollupBadge(pr.rollupState)}
@@ -249,7 +249,7 @@ function PrCardImpl({
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <Button size="sm" variant="destructive" disabled focusableWhenDisabled>
+                  <Button size="sm" variant="destructive" disabled focusableWhenDisabled className="pointer-coarse:h-11 pointer-coarse:px-4">
                     <TriangleAlert className="size-3.5" />
                     解决冲突
                   </Button>
@@ -260,7 +260,7 @@ function PrCardImpl({
           ) : (
             <Button
               size="sm"
-              className={isReady ? "motion-safe:animate-ci-ready" : undefined}
+              className={`${isReady ? "motion-safe:animate-ci-ready" : ""} pointer-coarse:h-11 pointer-coarse:px-4`}
               disabled={!canMerge || mergePending}
               onClick={() => onMergeRequest(pr)}
               onAnimationEnd={() => onReadyGlowEnd(pr.id)}
@@ -347,7 +347,7 @@ function PrCardImpl({
                         <Button
                           size="icon-xs"
                           variant="outline"
-                          className="aria-disabled:opacity-50 touch-manipulation"
+                          className="aria-disabled:opacity-50 touch-manipulation pointer-coarse:size-8"
                           aria-label={`重试 ${check.name}`}
                           disabled={isRerunPending}
                           focusableWhenDisabled

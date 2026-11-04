@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Moon, Sun, SunMoon } from "lucide-react";
+import { Contrast, Moon, Sun, SunMoon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { applyTheme, NEXT_THEME_MODE, readThemeMode, writeThemeMode, type ThemeMode } from "@/lib/theme";
@@ -10,10 +10,11 @@ const MODE_META: Record<ThemeMode, { icon: typeof Sun; label: string }> = {
   auto: { icon: SunMoon, label: "跟随时间" },
   light: { icon: Sun, label: "浅色" },
   dark: { icon: Moon, label: "深色" },
+  eink: { icon: Contrast, label: "墨水屏" },
 };
 
 /**
- * Manual theme override, cycling auto → light → dark. Reads the persisted
+ * Manual theme override, cycling auto → light → dark → eink. Reads the persisted
  * mode in an effect (not the state initializer) so server render and
  * hydration agree; a stored override flashes in one commit later.
  */
@@ -49,7 +50,7 @@ export function ThemeToggle() {
             aria-label={label}
             title={label}
             onClick={cycle}
-            className="size-8 rounded-lg text-muted-foreground hover:text-foreground"
+            className="size-8 pointer-coarse:size-11 rounded-lg text-muted-foreground hover:text-foreground"
           />
         }
       >
