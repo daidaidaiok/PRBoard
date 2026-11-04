@@ -175,9 +175,13 @@ function PrCardImpl({
     (check) => check.kind === "check_run" && check.status === "in_progress" && (check.durationEstimate?.seconds ?? 0) > 0,
   );
   // E-ink: the progress clock is React-driven — CSS animation:none can't stop
-  // it, and every setNow repaint flashes the panel. Freeze at the mount-time
-  // snapshot; the manual refresh button re-fetches and re-arms the clock.
+  // it, and every setNow repaint flashes the panel. The interval stays off,
+  // but cards survive refreshes via key={pr.id}: advance the snapshot whenever
+  // fresh PR data lands so progress re-anchors instead of freezing at mount.
   const isEink = useIsEink();
+  useEffect(() => {
+    setNow(Date.now());
+  }, [pr]);
   useEffect(() => {
     if (!hasEstimatedCheckRunning || isEink) return;
     const interval = setInterval(() => setNow(Date.now()), 1000);

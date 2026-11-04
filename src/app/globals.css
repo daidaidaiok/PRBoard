@@ -228,6 +228,14 @@ html.eink .glass-panel {
   border-color: var(--border);
 }
 
+/* Rings are box-shadows, so the blanket none above also erases keyboard
+   focus indicators on outline-none + focus-visible:ring-* controls. Draw a
+   real outline instead — outlines are their own paint layer and survive. */
+html.eink :focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 /* The fixed body gradient dithers to gray and repaints on scroll — a
    plain white page is the whole point of e-ink. Unlayered beats @layer base. */
 html.eink body {
