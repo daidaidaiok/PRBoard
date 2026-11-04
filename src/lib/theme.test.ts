@@ -38,6 +38,12 @@ describe("theme mode persistence", () => {
     writeThemeMode("light", storage);
     expect(readThemeMode(storage)).toBe("light");
   });
+
+  it("round-trips an explicit eink override", () => {
+    const storage = new MemoryStorage();
+    writeThemeMode("eink", storage);
+    expect(readThemeMode(storage)).toBe("eink");
+  });
 });
 
 describe("resolveDark", () => {
@@ -53,12 +59,17 @@ describe("resolveDark", () => {
     expect(resolveDark("light", night)).toBe(false);
     expect(resolveDark("dark", noon)).toBe(true);
   });
+
+  it("never goes dark in eink mode", () => {
+    expect(resolveDark("eink", night)).toBe(false);
+  });
 });
 
 describe("NEXT_THEME_MODE", () => {
-  it("cycles auto → light → dark → auto", () => {
+  it("cycles auto → light → dark → eink → auto", () => {
     expect(NEXT_THEME_MODE.auto).toBe("light");
     expect(NEXT_THEME_MODE.light).toBe("dark");
-    expect(NEXT_THEME_MODE.dark).toBe("auto");
+    expect(NEXT_THEME_MODE.dark).toBe("eink");
+    expect(NEXT_THEME_MODE.eink).toBe("auto");
   });
 });

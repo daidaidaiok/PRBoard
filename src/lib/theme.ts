@@ -6,7 +6,12 @@
 export const NIGHT_MODE_START_HOUR = 18;
 export const NIGHT_MODE_END_HOUR = 6;
 
-export type ThemeMode = "auto" | "light" | "dark";
+/**
+ * Display mode. "eink" is a dedicated e-ink preset: forced light palette,
+ * no animations (see the html.eink block in globals.css). It is an explicit
+ * choice and takes precedence over the night schedule.
+ */
+export type ThemeMode = "auto" | "light" | "dark" | "eink";
 
 export const THEME_MODE_STORAGE_KEY = "prboard:theme-mode";
 
@@ -16,7 +21,8 @@ export type ThemeStorage = Pick<Storage, "getItem" | "setItem">;
 export const NEXT_THEME_MODE: Record<ThemeMode, ThemeMode> = {
   auto: "light",
   light: "dark",
-  dark: "auto",
+  dark: "eink",
+  eink: "auto",
 };
 
 export function isNightMode(date: Date = new Date()): boolean {
@@ -46,7 +52,7 @@ export function readThemeMode(storage?: ThemeStorage): ThemeMode {
   } catch {
     return "auto";
   }
-  return raw === "light" || raw === "dark" ? raw : "auto";
+  return raw === "light" || raw === "dark" || raw === "eink" ? raw : "auto";
 }
 
 export function writeThemeMode(mode: ThemeMode, storage?: ThemeStorage): void {
@@ -59,6 +65,7 @@ export function writeThemeMode(mode: ThemeMode, storage?: ThemeStorage): void {
   }
 }
 
+/** "eink" never resolves dark — the e-ink preset is light-only by design. */
 export function resolveDark(mode: ThemeMode, date: Date = new Date()): boolean {
   return mode === "dark" || (mode === "auto" && isNightMode(date));
 }
