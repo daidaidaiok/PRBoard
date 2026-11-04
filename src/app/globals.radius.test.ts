@@ -45,6 +45,18 @@ const sourceFiles = (function walk(dir: string): string[] {
   });
 })(resolve(process.cwd(), "src"));
 
+describe("continuous-corner progressive enhancement", () => {
+  // Safari 26 ignores corner-shape (stable support lands in Safari 27); the
+  // @supports guard keeps older browsers on plain border-radius.
+  it("applies squircle corners to the large glass surfaces", () => {
+    const block = css.match(/@supports\s*\(corner-shape:\s*squircle\)\s*\{[\s\S]*?\n\}/);
+    expect(block).not.toBeNull();
+    for (const selector of ['[data-slot="card"]', '[data-slot="dialog-content"]', ".glass-panel"]) {
+      expect(block?.[0]).toContain(selector);
+    }
+  });
+});
+
 describe("no hardcoded corner radii outside the token scale", () => {
   it("routes every non-trivial radius through a rounded-* token utility", () => {
     const offenders = sourceFiles.flatMap((file) =>

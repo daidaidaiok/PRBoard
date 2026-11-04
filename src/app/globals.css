@@ -209,3 +209,14 @@
     @apply border border-white/50 bg-white/35 shadow-[0_10px_30px_rgba(15,23,42,0.06)] backdrop-blur-[22px] dark:border-white/12 dark:bg-white/[0.07] dark:shadow-[0_10px_30px_rgba(0,0,0,0.28)];
   }
 }
+
+/* iOS-style continuous corners on the large surfaces. Browsers without
+   corner-shape (Safari ≤26 stable) drop the whole block and keep circular
+   border-radius corners; Safari 27+ picks this up automatically. */
+@supports (corner-shape: squircle) {
+  [data-slot="card"],
+  [data-slot="dialog-content"],
+  .glass-panel {
+    corner-shape: squircle;
+  }
+}
