@@ -15,6 +15,13 @@ export type ThemeMode = "auto" | "light" | "dark" | "eink";
 
 export const THEME_MODE_STORAGE_KEY = "prboard:theme-mode";
 
+/**
+ * Fired on `window` by `applyTheme` after every application. Consumers
+ * (e.g. useThemeMode) re-read the persisted mode instead of duplicating
+ * the auto-schedule logic.
+ */
+export const THEME_CHANGE_EVENT = "prboard:theme-change";
+
 export type ThemeStorage = Pick<Storage, "getItem" | "setItem">;
 
 /** Cycles in this order from the header toggle. */
@@ -73,6 +80,9 @@ export function resolveDark(mode: ThemeMode, date: Date = new Date()): boolean {
 export function applyTheme(root: HTMLElement, mode: ThemeMode, date: Date = new Date()): void {
   const dark = resolveDark(mode, date);
   root.classList.toggle("dark", dark);
+  // eink and dark are mutually exclusive (resolveDark forces light for
+  // eink); toggling both keeps a stale class from surviving mode switches.
+  root.classList.toggle("eink", mode === "eink");
   // color-scheme also updates native controls (selects, scrollbars, etc.)
   // while the CSS variables above style the application itself.
   root.style.colorScheme = dark ? "dark" : "light";
@@ -81,4 +91,7 @@ export function applyTheme(root: HTMLElement, mode: ThemeMode, date: Date = new 
   // viewport metadata is present (it is emitted by the root layout).
   const themeColor = root.ownerDocument?.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   themeColor?.setAttribute("content", dark ? "#0a0a0a" : "#ffffff");
+
+  // Browser only — applyTheme never runs on the server.
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
 }
