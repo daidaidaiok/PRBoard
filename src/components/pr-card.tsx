@@ -176,11 +176,14 @@ function PrCardImpl({
   );
   // E-ink: the progress clock is React-driven — CSS animation:none can't stop
   // it, and every setNow repaint flashes the panel. The interval stays off,
-  // but cards survive refreshes via key={pr.id}: advance the snapshot whenever
-  // fresh PR data lands so progress re-anchors instead of freezing at mount.
+  // but cards survive refreshes via key={pr.id}: re-anchor the snapshot one
+  // frame after fresh PR data lands instead of freezing at mount time. The
+  // rAF hop keeps setState out of the synchronous effect body (and out of
+  // render), and one repaint per manual refresh is exactly the eink budget.
   const isEink = useIsEink();
   useEffect(() => {
-    setNow(Date.now());
+    const raf = requestAnimationFrame(() => setNow(Date.now()));
+    return () => cancelAnimationFrame(raf);
   }, [pr]);
   useEffect(() => {
     if (!hasEstimatedCheckRunning || isEink) return;
