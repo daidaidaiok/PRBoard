@@ -213,6 +213,12 @@ html.eink *::after {
   transition: none !important;
 }
 
+/* The fixed body gradient dithers to gray and repaints on scroll — a
+   plain white page is the whole point of e-ink. Unlayered beats @layer base. */
+html.eink body {
+  background-image: none;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

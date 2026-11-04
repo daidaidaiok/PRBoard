@@ -95,6 +95,7 @@ export function RunnerMonitor() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (navigator.onLine) refreshAll();
     let timer: ReturnType<typeof setInterval> | undefined;
+    // E-ink: mount fetch + manual refresh only — no scheduled refreshes.
     if (!isEink) {
       timer = setInterval(() => {
         // Defensive: an SSE event may have just refreshed — stay inside the
@@ -102,10 +103,11 @@ export function RunnerMonitor() {
         if (Date.now() - lastRefreshAt.current < RUNNER_SSE_MIN_REFRESH_MS) return;
         if (navigator.onLine) refreshAll();
       }, POLL_INTERVAL_MS);
-      // Reconnect: the next 5min tick is too late, refresh immediately.
-      window.addEventListener("online", refreshAll);
     }
-    // E-ink: mount fetch + manual refresh only — no scheduled refreshes.
+    // Reconnect: the next 5min tick is too late, refresh immediately. Kept
+    // unconditional — like the dashboard, eink still gets the one-off
+    // reconnect refresh; only the interval above is eink-gated.
+    window.addEventListener("online", refreshAll);
     return () => {
       if (timer) clearInterval(timer);
       window.removeEventListener("online", refreshAll);
