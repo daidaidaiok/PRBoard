@@ -216,6 +216,18 @@ html.eink *::after {
   transition: none !important;
 }
 
+/* box-shadow:none also wipes Tailwind rings (they ARE box-shadows), and the
+   glass borders are translucent white — invisible on the pure-white eink
+   page. Cards and glass panels get solid --border outlines instead, so
+   surfaces stay separated without any shadow. */
+html.eink [data-slot="card"] {
+  border: 1px solid var(--border);
+}
+
+html.eink .glass-panel {
+  border-color: var(--border);
+}
+
 /* The fixed body gradient dithers to gray and repaints on scroll — a
    plain white page is the whole point of e-ink. Unlayered beats @layer base. */
 html.eink body {

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Progress, ProgressIndicator, ProgressTrack } from "@/components/ui/progress";
+import { useIsEink } from "@/lib/use-theme-mode";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   RotateCcw,
@@ -173,11 +174,15 @@ function PrCardImpl({
   const hasEstimatedCheckRunning = pr.checks.some(
     (check) => check.kind === "check_run" && check.status === "in_progress" && (check.durationEstimate?.seconds ?? 0) > 0,
   );
+  // E-ink: the progress clock is React-driven — CSS animation:none can't stop
+  // it, and every setNow repaint flashes the panel. Freeze at the mount-time
+  // snapshot; the manual refresh button re-fetches and re-arms the clock.
+  const isEink = useIsEink();
   useEffect(() => {
-    if (!hasEstimatedCheckRunning) return;
+    if (!hasEstimatedCheckRunning || isEink) return;
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, [hasEstimatedCheckRunning]);
+  }, [hasEstimatedCheckRunning, isEink]);
 
   const failedChecks = pr.checks.filter(
     (check) => check.status === "completed" && isFailureConclusion(check.conclusion),
@@ -217,7 +222,10 @@ function PrCardImpl({
   return (
     <Card className={isReady ? "motion-safe:animate-ci-ready" : undefined}>
       <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-        <div className="flex flex-col gap-1">
+        {/* min-w-0 lets the metadata column shrink inside the sm:flex-row
+            header — without it a long branch/title pushes the merge controls
+            past the card's overflow-hidden edge on the tablet grid. */}
+        <div className="flex min-w-0 flex-col gap-1">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span title={pr.repoFullName}>{repoDisplayName}</span>
             {pr.isDraft && (
@@ -231,13 +239,13 @@ function PrCardImpl({
             href={pr.url}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-1.5 text-sm font-medium hover:underline"
+            className="flex min-w-0 items-center gap-1.5 text-sm font-medium hover:underline"
           >
-            #{pr.number} {pr.title}
-            <ExternalLink className="size-3 text-muted-foreground" />
+            <span className="truncate">#{pr.number} {pr.title}</span>
+            <ExternalLink className="size-3 shrink-0 text-muted-foreground" />
           </a>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>{pr.headRefName} → {pr.baseRefName}</span>
+            <span className="truncate">{pr.headRefName} → {pr.baseRefName}</span>
           </div>
         </div>
         <div className="flex items-center justify-between gap-2 sm:justify-end">
