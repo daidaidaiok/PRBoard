@@ -39,13 +39,16 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  /* iOS-aligned corner scale (docs/specs/2026-11-05-ios-radius-alignment.md):
+     explicit px so nested surfaces land on the same integer family —
+     controls 8/10/12 (iOS controls/menus), cards 20, sheets 24, large panels 28. */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-3xl: 28px;
+  --radius-4xl: 32px;
   --animate-ci-pop: ci-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
   --animate-ci-shake: ci-shake 0.4s ease-in-out;
   --animate-ci-ready: ci-ready-glow 1.6s ease-out;
