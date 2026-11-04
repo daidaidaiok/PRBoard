@@ -24,6 +24,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { fetchWithTimeout, isTimeoutError } from "@/lib/fetch-with-timeout";
 import { mib, percentage } from "@/lib/host-capacity";
 import { parseRealtimeEvent, shouldRefreshOnHostEvent } from "@/lib/realtime-events";
+import { useIsEink } from "@/lib/use-theme-mode";
 
 // Fallback only — the SSE subscription below refreshes on host-metrics events.
 // The long poll just covers the gap while that connection is down, and the
@@ -170,6 +171,9 @@ export function HostCapacityMonitor() {
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
+  // Heuristic e-ink signal: gates the SSE subscription and the fixed poll,
+  // leaving mount fetch + the manual refresh button as the only triggers.
+  const isEink = useIsEink();
   // Shared by the poll and the SSE listener below: timestamp of the last
   // successful /api/hosts fetch, 0 meaning "never fetched yet".
   const lastRefreshAt = useRef(0);
@@ -196,6 +200,8 @@ export function HostCapacityMonitor() {
     // This component synchronizes with the independent host telemetry API.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadHosts(true);
+    // E-ink: mount fetch + manual refresh only.
+    if (isEink) return;
     const timer = setInterval(() => {
       // Defensive: an SSE event may have just refreshed — stay inside the
       // shared throttle window instead of stacking a poll on top of it.
@@ -203,7 +209,7 @@ export function HostCapacityMonitor() {
       void loadHosts(true);
     }, POLL_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [loadHosts]);
+  }, [loadHosts, isEink]);
 
   // Real-time push: host ingest -> Postgres NOTIFY -> this SSE stream ->
   // throttled refetch. The fixed 300s poll above stays as a fallback for a
@@ -211,6 +217,8 @@ export function HostCapacityMonitor() {
   // left to it silently. Non-host events (reason !== "host-metrics") are
   // ignored here — they drive the PR board, not host telemetry.
   useEffect(() => {
+    // E-ink: SSE push would trigger refreshes outside the manual-refresh flow.
+    if (isEink) return;
     const source = new EventSource("/api/events");
     source.addEventListener("update", (event: MessageEvent) => {
       const payload = parseRealtimeEvent(typeof event.data === "string" ? event.data : "");
@@ -219,7 +227,7 @@ export function HostCapacityMonitor() {
       void loadHosts(true);
     });
     return () => source.close();
-  }, [loadHosts]);
+  }, [loadHosts, isEink]);
 
   const summary = useMemo(() => {
     const hosts = domains?.flatMap((domain) => domain.hosts) ?? [];

@@ -14,6 +14,7 @@ import { mib, percentage } from "@/lib/host-capacity";
 import { fetchWithTimeout, isTimeoutError } from "@/lib/fetch-with-timeout";
 import { parseRealtimeEvent, shouldRefreshOnAnyEvent } from "@/lib/realtime-events";
 import { useOnlineStatus } from "@/lib/use-online-status";
+import { useIsEink } from "@/lib/use-theme-mode";
 
 // Fallback only — the SSE subscription below refreshes whenever any watched
 // repo or host event lands (check_run/workflow_run are exactly when busy
@@ -41,6 +42,7 @@ export function RunnerMonitor() {
   // Same contract as the dashboard: heuristic signal that gates the banner
   // and pauses polling; never a data-trust signal.
   const online = useOnlineStatus();
+  const isEink = useIsEink();
   // Shared by the poll, the SSE listener and the visibility listener: time of
   // the last *successful* /api/runners fetch, 0 meaning "never fetched yet".
   // Only success advances it (in fetchRunners), so a failed refresh never
@@ -92,24 +94,31 @@ export function RunnerMonitor() {
     // Runner online/offline transitions are not included in PR webhooks.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (navigator.onLine) refreshAll();
-    const timer = setInterval(() => {
-      // Defensive: an SSE event may have just refreshed — stay inside the
-      // shared throttle window instead of stacking a poll on top of it.
-      if (Date.now() - lastRefreshAt.current < RUNNER_SSE_MIN_REFRESH_MS) return;
-      if (navigator.onLine) refreshAll();
-    }, POLL_INTERVAL_MS);
-    // Reconnect: the next 5min tick is too late, refresh immediately.
+    let timer: ReturnType<typeof setInterval> | undefined;
+    // E-ink: mount fetch + manual refresh only — no scheduled refreshes.
+    if (!isEink) {
+      timer = setInterval(() => {
+        // Defensive: an SSE event may have just refreshed — stay inside the
+        // shared throttle window instead of stacking a poll on top of it.
+        if (Date.now() - lastRefreshAt.current < RUNNER_SSE_MIN_REFRESH_MS) return;
+        if (navigator.onLine) refreshAll();
+      }, POLL_INTERVAL_MS);
+    }
+    // Reconnect: the next 5min tick is too late, refresh immediately. Kept
+    // unconditional — like the dashboard, eink still gets the one-off
+    // reconnect refresh; only the interval above is eink-gated.
     window.addEventListener("online", refreshAll);
     return () => {
-      clearInterval(timer);
+      if (timer) clearInterval(timer);
       window.removeEventListener("online", refreshAll);
     };
-  }, [refreshAll]);
+  }, [refreshAll, isEink]);
 
   // Coming back to a backgrounded tab used to mean staring at stale runner
   // state until the next poll — refresh on visibility when data is stale.
   useEffect(() => {
     const onVisibilityChange = () => {
+      if (isEink) return;
       if (document.visibilityState !== "visible") return;
       if (!navigator.onLine) return;
       if (Date.now() - lastRefreshAt.current < VISIBILITY_STALE_MS) return;
@@ -117,7 +126,7 @@ export function RunnerMonitor() {
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, [refreshAll]);
+  }, [refreshAll, isEink]);
 
   // Real-time push: webhook / host ingest -> Postgres NOTIFY -> this SSE
   // stream -> throttled refetch. Runner busy flips exactly on check_run and
@@ -125,6 +134,8 @@ export function RunnerMonitor() {
   // fixed poll above stays as the fallback. EventSource reconnects on its
   // own, so errors are left to it silently.
   useEffect(() => {
+    // E-ink: SSE push would trigger refreshes outside the manual-refresh flow.
+    if (isEink) return;
     const source = new EventSource("/api/events");
     source.addEventListener("update", (event: MessageEvent) => {
       if (!navigator.onLine) return;
@@ -133,7 +144,7 @@ export function RunnerMonitor() {
       refreshAll();
     });
     return () => source.close();
-  }, [refreshAll]);
+  }, [refreshAll, isEink]);
 
   const stats = useMemo(() => ({
     total: runners?.length ?? 0,

@@ -8,6 +8,7 @@ import { fetchWithTimeout, isTimeoutError } from "@/lib/fetch-with-timeout";
 import { parseRealtimeEvent } from "@/lib/realtime-events";
 import { loadCachedDashboard, saveCachedDashboard } from "@/lib/prs-cache";
 import { useOnlineStatus } from "@/lib/use-online-status";
+import { useIsEink } from "@/lib/use-theme-mode";
 import { PrCard, checkStatusMeta, prCanMerge } from "@/components/pr-card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -98,6 +99,7 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
   // poll; it is a heuristic (captive portals read "online") and never a
   // data-trust signal.
   const online = useOnlineStatus();
+  const isEink = useIsEink();
 
   // One-shot flourishes for state transitions (pending -> pass/fail, PR just
   // became mergeable).
@@ -249,14 +251,16 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
       // Offline: skip the fetch entirely (it would just burn the 20s timeout)
       // and park briefly — the `online` event below refreshes immediately.
       if (!navigator.onLine) {
-        timer = setTimeout(tick, OFFLINE_RETRY_MS);
+        if (!isEink) timer = setTimeout(tick, OFFLINE_RETRY_MS);
         return;
       }
       void fetchPrs({ silent: true }).then(() => {
         if (cancelled) return;
         const streak = failureStreakRef.current;
         const delay = streak > 0 ? Math.min(QUICK_RETRY_MS * 2 ** (streak - 1), MAX_POLL_INTERVAL_MS) : FALLBACK_POLL_INTERVAL_MS;
-        timer = setTimeout(tick, delay);
+        // E-ink: no scheduled refetches — every repaint flashes the panel.
+        // Data comes from this mount fetch and the manual refresh button.
+        if (!isEink) timer = setTimeout(tick, delay);
       });
     };
     tick();
@@ -264,7 +268,7 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [fetchPrs]);
+  }, [fetchPrs, isEink]);
 
   // Reconnect: the poll may be parked in its offline pause, so the browser's
   // online event itself triggers the immediate refresh.
@@ -278,6 +282,8 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
   // EventSource reconnects on its own if the connection drops; `live` just
   // reflects current connection state for the UI, it doesn't gate fetching.
   useEffect(() => {
+    // E-ink: no live updates at all — see the poll effect above.
+    if (isEink) return;
     const source = new EventSource("/api/events");
     source.addEventListener("connected", () => setLive(true));
     // Host-telemetry events (reason: "host-metrics") are consumed by the
@@ -291,7 +297,7 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
     });
     source.onerror = () => setLive(false);
     return () => source.close();
-  }, [fetchPrs]);
+  }, [fetchPrs, isEink]);
 
   // Fallback cleanup: onAnimationEnd doesn't fire for prefers-reduced-motion
   // users (the flourish classes are motion-safe-gated) or if a PR/check is
@@ -487,7 +493,7 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
 
   return (
     <div className={`flex flex-1 flex-col gap-4 p-4 sm:p-6 ${showProjectSwitcher ? "pb-28" : ""}`}>
-      <div className="glass-panel flex flex-wrap items-center justify-between gap-3 rounded-[22px] px-4 py-3">
+      <div className="glass-panel flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-sm font-medium text-muted-foreground">
             {prs === null
@@ -497,8 +503,8 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
                 }`}
           </h2>
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className={`size-1.5 rounded-full ${live ? "bg-emerald-500" : "bg-zinc-400"}`} />
-            {live ? "实时" : "轮询中"}
+            <span className={`size-1.5 rounded-full ${isEink ? "bg-zinc-500" : live ? "bg-emerald-500" : "bg-zinc-400"}`} />
+            {isEink ? "手动" : live ? "实时" : "轮询中"}
           </span>
           {staleCapturedAt && (
             <span
@@ -567,14 +573,14 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
       )}
 
       {prs === null && !error && (
-        <div className="flex flex-col gap-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 md:items-start">
           {Array.from({ length: 4 }, (_, i) => (
             <PrCardSkeleton key={i} />
           ))}
         </div>
       )}
 
-      <div className="flex flex-col gap-3">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 md:items-start">
         {visiblePrs?.map((pr) => (
           <PrCard
             key={pr.id}

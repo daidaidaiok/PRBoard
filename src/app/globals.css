@@ -39,13 +39,16 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  /* iOS-aligned corner scale (docs/specs/2026-11-05-ios-radius-alignment.md):
+     explicit px so nested surfaces land on the same integer family —
+     controls 8/10/12 (iOS controls/menus), cards 20, sheets 24, large panels 28. */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-3xl: 28px;
+  --radius-4xl: 32px;
   --animate-ci-pop: ci-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
   --animate-ci-shake: ci-shake 0.4s ease-in-out;
   --animate-ci-ready: ci-ready-glow 1.6s ease-out;
@@ -177,6 +180,68 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* E-ink display mode (ThemeMode "eink"): pure black-on-white, zero
+   shadows, zero animation — every repaint flashes e-ink panels, so the
+   board only changes when the user refreshes or content actually changes.
+   grayscale(1) flattens Tailwind status colors (emerald/red/…) that live
+   outside these variables; statuses stay legible via their icons and text.
+   Sits after .dark so, if both classes ever coexisted, eink wins. */
+html.eink {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0 0 0);
+  --primary: oklch(0 0 0);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(1 0 0);
+  --secondary-foreground: oklch(0 0 0);
+  --muted: oklch(1 0 0);
+  --muted-foreground: oklch(0.35 0 0);
+  --accent: oklch(0.9 0 0);
+  --accent-foreground: oklch(0 0 0);
+  --destructive: oklch(0.25 0 0);
+  --border: oklch(0.25 0 0);
+  --input: oklch(0.25 0 0);
+  --ring: oklch(0.35 0 0);
+  filter: grayscale(1);
+}
+
+html.eink *,
+html.eink *::before,
+html.eink *::after {
+  box-shadow: none !important;
+  animation: none !important;
+  transition: none !important;
+}
+
+/* box-shadow:none also wipes Tailwind rings (they ARE box-shadows), and the
+   glass borders are translucent white — invisible on the pure-white eink
+   page. Cards and glass panels get solid --border outlines instead, so
+   surfaces stay separated without any shadow. */
+html.eink [data-slot="card"] {
+  border: 1px solid var(--border);
+}
+
+html.eink .glass-panel {
+  border-color: var(--border);
+}
+
+/* Rings are box-shadows, so the blanket none above also erases keyboard
+   focus indicators on outline-none + focus-visible:ring-* controls. Draw a
+   real outline instead — outlines are their own paint layer and survive. */
+html.eink :focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* The fixed body gradient dithers to gray and repaints on scroll — a
+   plain white page is the whole point of e-ink. Unlayered beats @layer base. */
+html.eink body {
+  background-image: none;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -204,5 +269,16 @@
 @layer components {
   .glass-panel {
     @apply border border-white/50 bg-white/35 shadow-[0_10px_30px_rgba(15,23,42,0.06)] backdrop-blur-[22px] dark:border-white/12 dark:bg-white/[0.07] dark:shadow-[0_10px_30px_rgba(0,0,0,0.28)];
+  }
+}
+
+/* iOS-style continuous corners on the large surfaces. Browsers without
+   corner-shape (Safari ≤26 stable) drop the whole block and keep circular
+   border-radius corners; Safari 27+ picks this up automatically. */
+@supports (corner-shape: squircle) {
+  [data-slot="card"],
+  [data-slot="dialog-content"],
+  .glass-panel {
+    corner-shape: squircle;
   }
 }
