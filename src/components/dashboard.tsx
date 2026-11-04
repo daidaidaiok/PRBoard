@@ -573,14 +573,14 @@ export function Dashboard({ hasInstallation = true, userLogin }: { hasInstallati
       )}
 
       {prs === null && !error && (
-        <div className="flex flex-col gap-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 md:items-start">
           {Array.from({ length: 4 }, (_, i) => (
             <PrCardSkeleton key={i} />
           ))}
         </div>
       )}
 
-      <div className="flex flex-col gap-3">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 md:items-start">
         {visiblePrs?.map((pr) => (
           <PrCard
             key={pr.id}
