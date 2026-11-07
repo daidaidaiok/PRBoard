@@ -12,13 +12,16 @@ import { metadata, viewport } from "./layout";
 // 缺 apple-touch-icon 时 Safari 用网页截图当图标，缺 capable 时退化为浏览器标签页。
 describe("root layout metadata (iOS PWA install chain)", () => {
   it("declares an apple-touch-icon so the home screen icon is the app icon", () => {
-    expect(metadata.icons).toBeDefined();
-    expect(metadata.icons?.apple).toBe("/apple-touch-icon.png");
+    // icons 的类型是 IconURL | Icon[] | Icons 联合，用 toMatchObject 同时完成收窄与断言
+    expect(metadata.icons).toMatchObject({ apple: "/apple-touch-icon.png" });
   });
 
   it("opts into standalone web-app mode with the correct title", () => {
-    expect(metadata.appleWebApp?.capable).toBe(true);
-    expect(metadata.appleWebApp?.title).toBe("PRboard");
+    // appleWebApp 的类型是 boolean | AppleWebApp，用 toMatchObject 同时完成收窄与断言
+    expect(metadata.appleWebApp).toMatchObject({
+      capable: true,
+      title: "PRboard",
+    });
   });
 
   it("keeps a device-width viewport so the standalone window scales correctly", () => {
