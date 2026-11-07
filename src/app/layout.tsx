@@ -22,6 +22,8 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "PRboard",
   description: "跨仓库 GitHub PR + CI 看板",
+  // apple-touch-icon 走文件约定 src/app/apple-icon.png（全出血，scripts/tools/generate-icons.mjs 生成）。
+  // 显式声明 metadata.icons 会让 Next 16 抑制 icon.svg / apple-icon.png 的自动输出，勿加回。
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
