@@ -23,7 +23,11 @@ PRboard 的推送走 [Bark](https://apps.apple.com/app/bark-customed-notificatio
 
 1. iPad App Store 安装 **Bark**。
 2. 打开 Bark 拷贝你的推送 URL（形如 `https://<bark-worker>/abcdefg`）。
-3. 在 PRboard 中进入 **设置 → 通知**（`/settings/notifications`），粘贴 Bark URL，按需开关四类事件（CI 全绿 / CI 重试耗尽 / PR 冲突 / Vercel 部署失败），点「发送测试推送」确认 iPad 能收到。
+3. 在 PRboard 中进入 **设置 → 通知**（`/settings/notifications`），粘贴 Bark URL，点「**保存地址**」。
+4. 按需开关四类事件（CI 全绿 / CI 重试耗尽 / PR 冲突 / Vercel 部署失败），点「**保存通知开关**」。
+5. 点「**发送测试推送**」确认 iPad 能收到。
+
+注意：测试推送不会保存你填的地址——先保存再测试，否则关掉页面配置就丢了。
 
 ## 显示模式
 

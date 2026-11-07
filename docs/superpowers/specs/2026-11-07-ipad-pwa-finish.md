@@ -26,9 +26,9 @@
 
 ### 1. apple-touch-icon
 
-- `sips -z 180 180 public/icons/icon-192.png --out public/apple-touch-icon.png`。
-- iOS 自动为图标加圆角遮罩，源图必须是方角满幅（icon-192 已满足）。
-- `src/app/layout.tsx` 的 `metadata` 增加 `icons: { apple: "/apple-touch-icon.png" }`。
+> **实施修正（PR#18 review）**：初版用 `sips` 从 `icon-192.png` 生成 `public/apple-touch-icon.png` + `metadata.icons.apple`，被 Bugbot 两条 finding 推翻——① `icon-192.png` 是圆角渲染，iOS 再套遮罩会缩图标留空角；② Next 16 显式 export `metadata.icons` 会抑制文件约定 `icon.svg`/`apple-icon.png` 的自动输出（实测确认）。仓库本有 `scripts/tools/generate-icons.mjs` 生成的全出血 `src/app/apple-icon.png`（`rx="112"` → `rx="0"`）专供此用。
+
+最终方案：**不写 `metadata.icons`**，直接用 Next 文件约定 `src/app/apple-icon.png`（自动输出 `<link rel="apple-touch-icon" sizes="180x180">`）；`layout.tsx` 加注释防止回归。测试锁「不显式声明 icons」。
 
 ### 2. metadata 完整性测试（TDD）
 
