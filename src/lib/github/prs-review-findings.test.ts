@@ -125,10 +125,11 @@ describe("buildReviewFindings", () => {
 });
 
 // GraphQL 查询必须用 states 过滤掉 COMMENTED/PENDING 噪音并给足窗口——否则
-// PR 全局一页里仍阻塞的 CR 会被纯评论挤出窗口（Bugbot Medium）。
+// PR 全局一页里仍阻塞的 CR 会被纯评论挤出窗口（Bugbot Medium）。last: 100 是
+// GraphQL 单页上限，等于实际全量（Codex P2：多 reviewer 大窗口也要全覆盖）。
 describe("QUERY reviews window", () => {
-  it("filters to opinionated+dismissed states with a wide window", () => {
+  it("filters to opinionated+dismissed states with the max page size", () => {
     const source = readFileSync("src/lib/github/prs.ts", "utf8");
-    expect(source).toContain("reviews(last: 50, states: [CHANGES_REQUESTED, APPROVED, DISMISSED])");
+    expect(source).toContain("reviews(last: 100, states: [CHANGES_REQUESTED, APPROVED, DISMISSED])");
   });
 });

@@ -120,7 +120,7 @@ const QUERY = `
               }
             }
           }
-          reviews(last: 50, states: [CHANGES_REQUESTED, APPROVED, DISMISSED]) {
+          reviews(last: 100, states: [CHANGES_REQUESTED, APPROVED, DISMISSED]) {
             nodes {
               id
               author { login }
