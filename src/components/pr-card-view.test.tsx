@@ -32,6 +32,77 @@ describe("compact PR status", () => {
   });
 });
 
+describe("review gate badge", () => {
+  const renderFull = (reviewDecision: string | null, mergeable = "MERGEABLE", rollupState: string | null = "success") =>
+    renderToStaticMarkup(
+      createElement(PrCard, {
+        ...props,
+        pr: { ...props.pr, reviewDecision, mergeable, rollupState },
+        compact: false,
+        onCompactChange: noop,
+      }),
+    );
+
+  it.each([
+    ["CHANGES_REQUESTED", "待修复", "circle-x"],
+    ["REVIEW_REQUIRED", "待 review", "circle-dashed"],
+  ])("shows %s as a blocking badge and keeps merge disabled", (reviewDecision, label, icon) => {
+    const html = renderFull(reviewDecision);
+    expect(html).toContain(label);
+    expect(html).toContain(icon);
+    // disabled 属性本身（disabled=""），排除 class 里的 disabled:* 工具类名。
+    expect(html).toMatch(/<button\b[^>]*?\sdisabled(?==|>|\s)/);
+    expect(html).not.toContain("可合并");
+  });
+
+  it("shows 可合并 only when everything is resolved", () => {
+    const html = renderFull("APPROVED", "MERGEABLE", "success");
+    expect(html).toContain("可合并");
+    expect(html).toContain("git-merge");
+    expect(html).not.toMatch(/<button\b[^>]*?\sdisabled(?==|>|\s)/);
+  });
+
+  it.each([
+    ["failure", "失败"],
+    ["pending", "进行中"],
+    ["expected", "进行中"],
+  ])("hides 可合并 while CI is %s", (rollupState, rollupLabel) => {
+    const html = renderFull("APPROVED", "MERGEABLE", rollupState);
+    expect(html).not.toContain("可合并");
+    expect(html).toContain(rollupLabel);
+  });
+
+  it("shows 可合并 without any CI checks", () => {
+    const html = renderFull("APPROVED", "MERGEABLE", null);
+    expect(html).toContain("可合并");
+  });
+
+  it("does not double-label while conflicting", () => {
+    const html = renderFull("CHANGES_REQUESTED", "CONFLICTING");
+    expect(html).toContain("解决冲突");
+    expect(html).not.toContain("可合并");
+  });
+
+  it("shows no gate badge without review info", () => {
+    const html = renderFull(null, "UNKNOWN");
+    expect(html).not.toContain("待修复");
+    expect(html).not.toContain("待 review");
+    expect(html).not.toContain("可合并");
+  });
+
+  it("shows the blocking badge in compact view too", () => {
+    const html = renderToStaticMarkup(
+      createElement(PrCard, {
+        ...props,
+        pr: { ...props.pr, reviewDecision: "CHANGES_REQUESTED" },
+        compact: true,
+        onCompactChange: noop,
+      }),
+    );
+    expect(html).toContain("待修复");
+  });
+});
+
 it("wires one icon toggle and controlled cards without remounting", () => {
   const source = readFileSync("src/components/dashboard.tsx", "utf8");
   const toolbarStart = source.indexOf('aria-label="PR 卡片展示"');
