@@ -33,11 +33,16 @@ describe("compact PR status", () => {
 });
 
 describe("review gate badge", () => {
-  const renderFull = (reviewDecision: string | null, mergeable = "MERGEABLE", rollupState: string | null = "success") =>
+  const renderFull = (
+    reviewDecision: string | null,
+    mergeable = "MERGEABLE",
+    rollupState: string | null = "success",
+    reviewFindings?: { id: string; author: string; body: string }[],
+  ) =>
     renderToStaticMarkup(
       createElement(PrCard, {
         ...props,
-        pr: { ...props.pr, reviewDecision, mergeable, rollupState },
+        pr: { ...props.pr, reviewDecision, mergeable, rollupState, reviewFindings },
         compact: false,
         onCompactChange: noop,
       }),
@@ -55,10 +60,11 @@ describe("review gate badge", () => {
     expect(html).not.toContain("可合并");
   });
 
-  it("shows 可合并 only when everything is resolved", () => {
+  it("shows no review badge when everything is resolved — the lit merge button IS the ready signal", () => {
     const html = renderFull("APPROVED", "MERGEABLE", "success");
-    expect(html).toContain("可合并");
-    expect(html).toContain("git-merge");
+    expect(html).not.toContain("可合并");
+    expect(html).not.toContain("待修复");
+    expect(html).not.toContain("待 review");
     expect(html).not.toMatch(/<button\b[^>]*?\sdisabled(?==|>|\s)/);
   });
 
@@ -66,15 +72,10 @@ describe("review gate badge", () => {
     ["failure", "失败"],
     ["pending", "进行中"],
     ["expected", "进行中"],
-  ])("hides 可合并 while CI is %s", (rollupState, rollupLabel) => {
+  ])("shows no review badge while CI is %s either", (rollupState, rollupLabel) => {
     const html = renderFull("APPROVED", "MERGEABLE", rollupState);
     expect(html).not.toContain("可合并");
     expect(html).toContain(rollupLabel);
-  });
-
-  it("shows 可合并 without any CI checks", () => {
-    const html = renderFull("APPROVED", "MERGEABLE", null);
-    expect(html).toContain("可合并");
   });
 
   it("does not double-label while conflicting", () => {
@@ -100,6 +101,49 @@ describe("review gate badge", () => {
       }),
     );
     expect(html).toContain("待修复");
+  });
+
+  it("lists each review finding with its author and body in the full view", () => {
+    const html = renderFull("CHANGES_REQUESTED", "MERGEABLE", "success", [
+      { id: "t1", author: "cursor[bot]", body: "Merge badge ignores failing CI\n\nmore detail below" },
+      { id: "t2", author: "alice", body: "这个循环会越界" },
+    ]);
+    expect(html).toContain("cursor[bot]");
+    expect(html).toContain("Merge badge ignores failing CI");
+    expect(html).toContain("alice");
+    expect(html).toContain("这个循环会越界");
+    // 列出的内容必须可点回 GitHub
+    expect(html).toMatch(/href="https:\/\/example\.com\/pr\/1"/);
+  });
+
+  it("shows the finding count on the badge", () => {
+    const html = renderFull("CHANGES_REQUESTED", "MERGEABLE", "success", [
+      { id: "t1", author: "cursor[bot]", body: "a" },
+      { id: "t2", author: "alice", body: "b" },
+    ]);
+    expect(html).toContain("待修复 ×2");
+  });
+
+  it("hides the findings block in compact view", () => {
+    const html = renderToStaticMarkup(
+      createElement(PrCard, {
+        ...props,
+        pr: {
+          ...props.pr,
+          reviewDecision: "CHANGES_REQUESTED",
+          reviewFindings: [{ id: "t1", author: "alice", body: "越界" }],
+        },
+        compact: true,
+        onCompactChange: noop,
+      }),
+    );
+    expect(html).toContain("待修复 ×1");
+    expect(html).not.toContain("越界");
+  });
+
+  it("does not render a findings block when nothing is unresolved", () => {
+    const html = renderFull("APPROVED", "MERGEABLE", "success", []);
+    expect(html).not.toContain("alice");
   });
 });
 

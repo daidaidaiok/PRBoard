@@ -43,6 +43,18 @@ export interface PullRequestSummary {
   reviewDecision: string | null;
   rollupState: string | null;
   checks: CheckItem[];
+  /**
+   * 未处理的 review findings（服务端组装）：unresolved reviewThreads 的首条评论
+   * + CHANGES_REQUESTED 顶层 review body。空数组 = 没有要修的 review。
+   * 可选：浏览器 localStorage 的旧快照缓存里没有这个字段。
+   */
+  reviewFindings?: ReviewFinding[];
+}
+
+export interface ReviewFinding {
+  id: string;
+  author: string;
+  body: string;
 }
 
 /**
@@ -96,6 +108,26 @@ const QUERY = `
           updatedAt
           mergeable
           reviewDecision
+          reviewThreads(first: 50) {
+            nodes {
+              id
+              isResolved
+              comments(first: 1) {
+                nodes {
+                  author { login }
+                  body
+                }
+              }
+            }
+          }
+          reviews(last: 50, states: [CHANGES_REQUESTED, APPROVED, DISMISSED]) {
+            nodes {
+              id
+              author { login }
+              body
+              state
+            }
+          }
           author { login avatarUrl }
           repository { nameWithOwner }
           headRefName
@@ -144,6 +176,52 @@ interface StatusContextNode {
 }
 type ContextNode = CheckRunNode | StatusContextNode;
 
+/**
+ * 「要修复的 review」的两条来源：unresolved reviewThreads（bot/人工行内意见，无论
+ * review state——只有 resolve 掉才算修完）+ 顶层 latest review（仅当它仍是
+ * CHANGES_REQUESTED；reviewer 后来 approve/撤回时早先的意见不算数）。
+ */
+export interface ReviewThreadsResponseNode {
+  reviewThreads: {
+    nodes: Array<{
+      id: string;
+      isResolved: boolean;
+      comments: { nodes: Array<{ author: { login: string } | null; body: string }> };
+    }>;
+  };
+  reviews: {
+    nodes: Array<{ id: string; author: { login: string } | null; body: string; state: string }>;
+  };
+}
+
+export function buildReviewFindings(node: Partial<ReviewThreadsResponseNode>): ReviewFinding[] {
+  const threadFindings = (node.reviewThreads?.nodes ?? [])
+    .filter((thread) => !thread.isResolved)
+    .map((thread) => {
+      const comment = thread.comments.nodes[0];
+      if (!comment) return null;
+      return { id: thread.id, author: comment.author?.login ?? "unknown", body: comment.body } satisfies ReviewFinding;
+    })
+    .filter((finding): finding is ReviewFinding => finding !== null);
+  // 顶层意见按「每个 reviewer 的最新 opinionated review」判定（COMMENTED 不改
+  // 变批准/要求修改状态，DISMISSED 意味着撤回——都要跳过往前找）。reviews 连接
+  // 按时间正序，组内倒着扫第一条 CHANGES_REQUESTED/APPROVED 即最新决策。
+  const OPINIONATED = new Set(["CHANGES_REQUESTED", "APPROVED"]);
+  const latestByReviewer = new Map<string, ReviewThreadsResponseNode["reviews"]["nodes"][number]>();
+  for (const review of node.reviews?.nodes ?? []) {
+    if (!OPINIONATED.has(review.state)) continue;
+    latestByReviewer.set(review.author?.login ?? "unknown", review);
+  }
+  const reviewFindings = [...latestByReviewer.values()]
+    .filter((review) => review.state === "CHANGES_REQUESTED")
+    .map((review) => ({
+      id: review.id,
+      author: review.author?.login ?? "unknown",
+      body: review.body,
+    }));
+  return [...threadFindings, ...reviewFindings];
+}
+
 function normalizeCheckRunStatus(status: string): CheckItem["status"] {
   switch (status.toLowerCase()) {
     case "queued":
@@ -170,6 +248,8 @@ interface SearchResponse {
       updatedAt: string;
       mergeable: string;
       reviewDecision: string | null;
+      reviewThreads: ReviewThreadsResponseNode["reviewThreads"];
+      reviews: ReviewThreadsResponseNode["reviews"];
       author: { login: string; avatarUrl: string } | null;
       repository: { nameWithOwner: string };
       headRefName: string;
@@ -393,6 +473,7 @@ export async function listOpenPullRequests(userId = 0): Promise<PullRequestSumma
         baseRefName: node.baseRefName,
         mergeable: node.mergeable,
         reviewDecision: node.reviewDecision,
+        reviewFindings: buildReviewFindings(node),
         rollupState: computeRollupState(checks),
         checks,
       });
