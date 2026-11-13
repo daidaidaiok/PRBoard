@@ -1,53 +1,42 @@
-# Spec: PR 卡片 review 门禁徽章
+# Spec: PR 卡片 review 门禁徽章（v2 迭代）
 
-日期：2026-11-14
-分支：feat/review-findings-gate
-状态：已确认（描述模式，采用推荐方案 A）
+日期：2026-11-14（v1 同日合并 PR#20；v2 按用户反馈迭代）
+分支：feat/review-findings-list
 
-## 问题
+## v2 用户反馈（原文）
 
-PR 卡片的合并按钮在 review 未通过时只是灰掉，卡片上没有任何地方显示 review 状态：
-reviewer 提了 changes requested（待修复）还是没人审（待 review），用户在 PRboard 上看不出来，
-只能点进 GitHub 才知道为什么「不能合并」。需求：
+1. 「可合并」徽章和亮起的合并按钮重复 → **删除「可合并」徽章**：全部修完 = 不显示任何 review 徽章，
+   合并按钮亮起本身就是「可合并」。
+2. 「review 你要写出来呀」→ **把 review findings 本体列出来**，不是只给一个状态词。
 
-1. 每个 PR 的 review 如有要修复的，都要在卡片上显示出来。
-2. 全部修复完（review 通过 + CI 绿 + 无冲突）才显示「可合并」。
+## v2 方案
 
-## 方案
+### 数据层（prs.ts）
 
-抽一个 `reviewGateBadge(pr)` 帮助函数返回 `Badge | null`，展开视图与精简视图共用。
-状态按优先级取一：
+`PullRequestSummary` 新增：
 
-| 优先级 | 条件 | 徽章 | 颜色/图标 |
-|---|---|---|---|
-| 0 | `mergeable === "CONFLICTING"` | 不显示 | 已有「解决冲突」destructive 按钮，重复信息 |
-| 1 | `reviewDecision === "CHANGES_REQUESTED"` | 待修复 | destructive + CircleX |
-| 2 | `reviewDecision === "REVIEW_REQUIRED"` | 待 review | amber + CircleDashed |
-| 3 | `prCanMerge(pr)` 为 true | 可合并 | emerald + GitMerge |
-| 4 | 其他（APPROVED 但 CI 未过 / UNKNOWN） | 不显示 | rollup 徽章已表达 CI 状态 |
+```ts
+reviewFindings: { id: string; author: string; body: string }[]
+```
 
-「可合并」徽章直接复用 `prCanMerge`（与合并按钮可点状态完全同一判定），
-保证不会出现「徽章说可合并、按钮却禁用」的矛盾。
+服务端组装，两条来源：
 
-## 展示位置
+1. **unresolved reviewThreads** 的首条评论（Bugbot/Codex 行内 findings、人工行内意见——无论 review
+   state，只要没 resolve 就是要修的；`isOutdated` 已过期的也列出，但 UI 不再单独区分）。
+2. **CHANGES_REQUESTED 顶层 review body**（纯 review 意见、无行内评论的情况）。
 
-- 展开视图：CardHeader 元信息行，Draft 徽章之后。
-- 精简视图：rollup 徽章之后（一行内同样可见）。
+GraphQL `QUERY` 增加对应子查询，条数上限 threads 50 / reviews 10（个人看板量级足够）。
 
-## 不变
+### UI（pr-card.tsx）
 
-- `prCanMerge` 判定逻辑不变（已正确）。
-- 合并按钮禁用逻辑不变。
-- 数据层不动：`reviewDecision`、`mergeable` 均已在 `PullRequestSummary`。
+- 「待修复」徽章带数量：`待修复 ×N`（N = reviewFindings.length）。
+- 展开视图新增 Review 区块：逐条列出 `author + body 首行`，链接到 PR。
+- 精简视图：仅徽章带数量（一行放不下列表）。
+- 「待 review」徽章保留（不重复、有价值）；`reviewDecision` 为空但 threads 未 resolve 时也显示「待修复」。
 
 ## 验收标准
 
-- [ ] `CHANGES_REQUESTED` → 卡片（展开+精简）显示「待修复」，合并按钮禁用。
-- [ ] `REVIEW_REQUIRED` → 显示「待 review」，合并按钮禁用。
-- [ ] APPROVED + MERGEABLE → 显示「可合并」，合并按钮可点。
-- [ ] CONFLICTING → 不显示「可合并」（冲突按钮接管）。
-- [ ] 无 review 信息（null + UNKNOWN）→ 不显示 review 徽章。
-
-## 测试计划
-
-`pr-card-view.test.tsx` 按现有 renderToStaticMarkup 模式新增用例覆盖上表 5 行。
+- [ ] 卡片不再出现「可合并」徽章。
+- [ ] unresolved thread 与 CHANGES_REQUESTED review 逐条显示作者与内容摘要。
+- [ ] 徽章数量与 findings 条数一致。
+- [ ] 全部 resolve 后徽章消失、合并按钮可点。

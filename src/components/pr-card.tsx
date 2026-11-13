@@ -65,17 +65,19 @@ export function prCanMerge(pr: PullRequestSummary): boolean {
 }
 
 /**
- * Review 门禁徽章：review 有待修复/待审的就亮出来，全部清完（review 通过 + CI 绿
- * + 无冲突）才亮「可合并」。CI 门禁比合并按钮（prCanMerge）更严——按钮允许人工在
- * CI 未绿时强合，徽章只如实反映「没有要修的了」。冲突时交给「解决冲突」按钮，不重复提示。
+ * Review 门禁徽章：有没处理完的 review（findings / 待审）就如实亮出来，具体内容
+ * 在卡片的 review 区块列出；全部清完 = 不显示任何 review 徽章，此时合并按钮亮起
+ * 本身就是「可以合并」——不再单设一枚重复的可合并徽章（v2 用户反馈）。
+ * 冲突时交给「解决冲突」按钮表达，不重复提示。
  */
 export function reviewGateBadge(pr: PullRequestSummary) {
   if (pr.mergeable === "CONFLICTING") return null;
-  if (pr.reviewDecision === "CHANGES_REQUESTED") {
+  const findingCount = pr.reviewFindings?.length ?? 0;
+  if (pr.reviewDecision === "CHANGES_REQUESTED" || findingCount > 0) {
     return (
       <Badge variant="destructive">
         <CircleX className="size-3" />
-        待修复
+        {findingCount > 0 ? `待修复 ×${findingCount}` : "待修复"}
       </Badge>
     );
   }
@@ -84,15 +86,6 @@ export function reviewGateBadge(pr: PullRequestSummary) {
       <Badge className="border-transparent bg-amber-500/10 text-amber-600 dark:text-amber-400">
         <CircleDashed className="size-3" />
         待 review
-      </Badge>
-    );
-  }
-  const ciCleared = pr.rollupState === "success" || pr.rollupState === null;
-  if (prCanMerge(pr) && ciCleared) {
-    return (
-      <Badge className="border-transparent bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-        <GitMerge className="size-3" />
-        可合并
       </Badge>
     );
   }
@@ -238,6 +231,7 @@ function PrCardImpl({
   const hasConflict = pr.mergeable === "CONFLICTING";
   const prProgress = pr.rollupState === "pending" ? computePrProgress(pr.checks, now) : null;
   const mergePending = pendingKey === `merge-${pr.id}`;
+  const reviewFindings = pr.reviewFindings ?? [];
 
   if (compact) {
     return (
@@ -430,6 +424,24 @@ function PrCardImpl({
               重试全部失败工作流 ({failedWorkflowRunIds.length})
             </Button>
           )}
+        </CardContent>
+      )}
+      {reviewFindings.length > 0 && (
+        <CardContent className="pt-0">
+          <div className="flex flex-col gap-1.5 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
+            {reviewFindings.map((finding) => (
+              <a
+                key={finding.id}
+                href={pr.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex min-w-0 flex-col gap-0.5 rounded-md text-xs hover:bg-destructive/10"
+              >
+                <span className="font-medium text-foreground">{finding.author}</span>
+                <span className="line-clamp-2 text-muted-foreground">{finding.body}</span>
+              </a>
+            ))}
+          </div>
         </CardContent>
       )}
     </Card>
