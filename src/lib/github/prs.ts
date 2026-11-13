@@ -120,7 +120,7 @@ const QUERY = `
               }
             }
           }
-          latestReviews(last: 10) {
+          reviews(last: 20) {
             nodes {
               id
               author { login }
@@ -189,7 +189,7 @@ export interface ReviewThreadsResponseNode {
       comments: { nodes: Array<{ author: { login: string } | null; body: string }> };
     }>;
   };
-  latestReviews: {
+  reviews: {
     nodes: Array<{ id: string; author: { login: string } | null; body: string; state: string }>;
   };
 }
@@ -203,7 +203,16 @@ export function buildReviewFindings(node: Partial<ReviewThreadsResponseNode>): R
       return { id: thread.id, author: comment.author?.login ?? "unknown", body: comment.body } satisfies ReviewFinding;
     })
     .filter((finding): finding is ReviewFinding => finding !== null);
-  const reviewFindings = (node.latestReviews?.nodes ?? [])
+  // 顶层意见按「每个 reviewer 的最新 opinionated review」判定（COMMENTED 不改
+  // 变批准/要求修改状态，DISMISSED 意味着撤回——都要跳过往前找）。reviews 连接
+  // 按时间正序，组内倒着扫第一条 CHANGES_REQUESTED/APPROVED 即最新决策。
+  const OPINIONATED = new Set(["CHANGES_REQUESTED", "APPROVED"]);
+  const latestByReviewer = new Map<string, ReviewThreadsResponseNode["reviews"]["nodes"][number]>();
+  for (const review of node.reviews?.nodes ?? []) {
+    if (!OPINIONATED.has(review.state)) continue;
+    latestByReviewer.set(review.author?.login ?? "unknown", review);
+  }
+  const reviewFindings = [...latestByReviewer.values()]
     .filter((review) => review.state === "CHANGES_REQUESTED")
     .map((review) => ({
       id: review.id,
@@ -240,7 +249,7 @@ interface SearchResponse {
       mergeable: string;
       reviewDecision: string | null;
       reviewThreads: ReviewThreadsResponseNode["reviewThreads"];
-      latestReviews: ReviewThreadsResponseNode["latestReviews"];
+      reviews: ReviewThreadsResponseNode["reviews"];
       author: { login: string; avatarUrl: string } | null;
       repository: { nameWithOwner: string };
       headRefName: string;
