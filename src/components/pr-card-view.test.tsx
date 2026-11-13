@@ -33,11 +33,11 @@ describe("compact PR status", () => {
 });
 
 describe("review gate badge", () => {
-  const renderFull = (reviewDecision: string | null, mergeable = "MERGEABLE") =>
+  const renderFull = (reviewDecision: string | null, mergeable = "MERGEABLE", rollupState: string | null = "success") =>
     renderToStaticMarkup(
       createElement(PrCard, {
         ...props,
-        pr: { ...props.pr, reviewDecision, mergeable },
+        pr: { ...props.pr, reviewDecision, mergeable, rollupState },
         compact: false,
         onCompactChange: noop,
       }),
@@ -56,10 +56,25 @@ describe("review gate badge", () => {
   });
 
   it("shows 可合并 only when everything is resolved", () => {
-    const html = renderFull("APPROVED", "MERGEABLE");
+    const html = renderFull("APPROVED", "MERGEABLE", "success");
     expect(html).toContain("可合并");
     expect(html).toContain("git-merge");
     expect(html).not.toMatch(/<button\b[^>]*?\sdisabled(?==|>|\s)/);
+  });
+
+  it.each([
+    ["failure", "失败"],
+    ["pending", "进行中"],
+    ["expected", "进行中"],
+  ])("hides 可合并 while CI is %s", (rollupState, rollupLabel) => {
+    const html = renderFull("APPROVED", "MERGEABLE", rollupState);
+    expect(html).not.toContain("可合并");
+    expect(html).toContain(rollupLabel);
+  });
+
+  it("shows 可合并 without any CI checks", () => {
+    const html = renderFull("APPROVED", "MERGEABLE", null);
+    expect(html).toContain("可合并");
   });
 
   it("does not double-label while conflicting", () => {

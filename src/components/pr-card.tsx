@@ -65,9 +65,9 @@ export function prCanMerge(pr: PullRequestSummary): boolean {
 }
 
 /**
- * Review 门禁徽章：review 有待修复/待审的就亮出来，全部清完（review 通过 + CI 可合并
- * + 无冲突）才亮「可合并」——与合并按钮可点状态同一判定（prCanMerge），不会互相矛盾。
- * 冲突时交给「解决冲突」按钮表达，不重复提示。
+ * Review 门禁徽章：review 有待修复/待审的就亮出来，全部清完（review 通过 + CI 绿
+ * + 无冲突）才亮「可合并」。CI 门禁比合并按钮（prCanMerge）更严——按钮允许人工在
+ * CI 未绿时强合，徽章只如实反映「没有要修的了」。冲突时交给「解决冲突」按钮，不重复提示。
  */
 export function reviewGateBadge(pr: PullRequestSummary) {
   if (pr.mergeable === "CONFLICTING") return null;
@@ -87,7 +87,8 @@ export function reviewGateBadge(pr: PullRequestSummary) {
       </Badge>
     );
   }
-  if (prCanMerge(pr)) {
+  const ciCleared = pr.rollupState === "success" || pr.rollupState === null;
+  if (prCanMerge(pr) && ciCleared) {
     return (
       <Badge className="border-transparent bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
         <GitMerge className="size-3" />
