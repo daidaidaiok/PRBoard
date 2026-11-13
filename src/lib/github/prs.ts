@@ -120,7 +120,7 @@ const QUERY = `
               }
             }
           }
-          latestReviews(last: 1) {
+          latestReviews(last: 10) {
             nodes {
               id
               author { login }
@@ -189,7 +189,7 @@ export interface ReviewThreadsResponseNode {
       comments: { nodes: Array<{ author: { login: string } | null; body: string }> };
     }>;
   };
-  reviews: {
+  latestReviews: {
     nodes: Array<{ id: string; author: { login: string } | null; body: string; state: string }>;
   };
 }
@@ -203,7 +203,7 @@ export function buildReviewFindings(node: Partial<ReviewThreadsResponseNode>): R
       return { id: thread.id, author: comment.author?.login ?? "unknown", body: comment.body } satisfies ReviewFinding;
     })
     .filter((finding): finding is ReviewFinding => finding !== null);
-  const reviewFindings = (node.reviews?.nodes ?? [])
+  const reviewFindings = (node.latestReviews?.nodes ?? [])
     .filter((review) => review.state === "CHANGES_REQUESTED")
     .map((review) => ({
       id: review.id,
@@ -240,7 +240,7 @@ interface SearchResponse {
       mergeable: string;
       reviewDecision: string | null;
       reviewThreads: ReviewThreadsResponseNode["reviewThreads"];
-      reviews: ReviewThreadsResponseNode["reviews"];
+      latestReviews: ReviewThreadsResponseNode["latestReviews"];
       author: { login: string; avatarUrl: string } | null;
       repository: { nameWithOwner: string };
       headRefName: string;
