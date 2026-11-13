@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 // prs.ts 经 @/db/installations 顶层拉起 db 连接，纯函数测试 mock 掉（与
@@ -103,5 +104,31 @@ describe("buildReviewFindings", () => {
   it("returns empty for nodes without the new fields (webhook-shaped payloads)", () => {
     const node = {} as ReviewThreadsResponseNode;
     expect(buildReviewFindings(node)).toEqual([]);
+  });
+
+  it("skips a dismissed approval without resurrecting anything beyond the CR", () => {
+    // CR → APPROVED 被 dismiss（GitHub 原地改 state 为 DISMISSED）：approval 失效，
+    // CR 仍是唯一有效意见（与 reviewDecision 一致）
+    const node = {
+      reviewThreads: { nodes: [] },
+      reviews: {
+        nodes: [
+          { id: "R1", author: { login: "bob" }, body: "please fix", state: "CHANGES_REQUESTED" },
+          { id: "R2", author: { login: "bob" }, body: "lgtm", state: "DISMISSED" },
+        ],
+      },
+    };
+    expect(buildReviewFindings(node)).toEqual([
+      { id: "R1", author: "bob", body: "please fix" },
+    ]);
+  });
+});
+
+// GraphQL 查询必须用 states 过滤掉 COMMENTED/PENDING 噪音并给足窗口——否则
+// PR 全局一页里仍阻塞的 CR 会被纯评论挤出窗口（Bugbot Medium）。
+describe("QUERY reviews window", () => {
+  it("filters to opinionated+dismissed states with a wide window", () => {
+    const source = readFileSync("src/lib/github/prs.ts", "utf8");
+    expect(source).toContain("reviews(last: 50, states: [CHANGES_REQUESTED, APPROVED, DISMISSED])");
   });
 });
