@@ -120,11 +120,12 @@ const QUERY = `
               }
             }
           }
-          reviews(last: 10, states: [CHANGES_REQUESTED]) {
+          latestReviews(last: 1) {
             nodes {
               id
               author { login }
               body
+              state
             }
           }
           author { login avatarUrl }
@@ -177,7 +178,8 @@ type ContextNode = CheckRunNode | StatusContextNode;
 
 /**
  * 「要修复的 review」的两条来源：unresolved reviewThreads（bot/人工行内意见，无论
- * review state——只有 resolve 掉才算修完）+ CHANGES_REQUESTED 顶层 review body。
+ * review state——只有 resolve 掉才算修完）+ 顶层 latest review（仅当它仍是
+ * CHANGES_REQUESTED；reviewer 后来 approve/撤回时早先的意见不算数）。
  */
 export interface ReviewThreadsResponseNode {
   reviewThreads: {
@@ -188,7 +190,7 @@ export interface ReviewThreadsResponseNode {
     }>;
   };
   reviews: {
-    nodes: Array<{ id: string; author: { login: string } | null; body: string }>;
+    nodes: Array<{ id: string; author: { login: string } | null; body: string; state: string }>;
   };
 }
 
@@ -201,11 +203,13 @@ export function buildReviewFindings(node: Partial<ReviewThreadsResponseNode>): R
       return { id: thread.id, author: comment.author?.login ?? "unknown", body: comment.body } satisfies ReviewFinding;
     })
     .filter((finding): finding is ReviewFinding => finding !== null);
-  const reviewFindings = (node.reviews?.nodes ?? []).map((review) => ({
-    id: review.id,
-    author: review.author?.login ?? "unknown",
-    body: review.body,
-  }));
+  const reviewFindings = (node.reviews?.nodes ?? [])
+    .filter((review) => review.state === "CHANGES_REQUESTED")
+    .map((review) => ({
+      id: review.id,
+      author: review.author?.login ?? "unknown",
+      body: review.body,
+    }));
   return [...threadFindings, ...reviewFindings];
 }
 

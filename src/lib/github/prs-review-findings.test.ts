@@ -29,10 +29,10 @@ describe("buildReviewFindings", () => {
     ]);
   });
 
-  it("appends CHANGES_REQUESTED review bodies", () => {
+  it("appends the latest review body only while it still requests changes", () => {
     const node = {
       reviewThreads: { nodes: [thread("T1", false, "cursor[bot]", "bug")] },
-      reviews: { nodes: [{ id: "R1", author: { login: "bob" }, body: "please split the PR" }] },
+      reviews: { nodes: [{ id: "R1", author: { login: "bob" }, body: "please split the PR", state: "CHANGES_REQUESTED" }] },
     };
     expect(buildReviewFindings(node)).toEqual([
       { id: "T1", author: "cursor[bot]", body: "bug" },
@@ -40,11 +40,20 @@ describe("buildReviewFindings", () => {
     ]);
   });
 
+  it("drops the old changes-requested review once the reviewer later approves", () => {
+    // latestReviews 只有最新一条：后来 approve 了，早先的「please fix」不能继续挂成待修复
+    const node = {
+      reviewThreads: { nodes: [] },
+      reviews: { nodes: [{ id: "R1", author: { login: "bob" }, body: "please fix", state: "APPROVED" }] },
+    };
+    expect(buildReviewFindings(node)).toEqual([]);
+  });
+
   it("tolerates empty threads and ghost authors", () => {
     const node = {
       // author=null 模拟 ghost/删号：helper 生成空 thread，应整条跳过
       reviewThreads: { nodes: [thread("T1", false, null, "orphan"), thread("T2", false, "alice", "")] },
-      reviews: { nodes: [{ id: "R2", author: null, body: "ghost review" }] },
+      reviews: { nodes: [{ id: "R2", author: null, body: "ghost review", state: "CHANGES_REQUESTED" }] },
     };
     expect(buildReviewFindings(node)).toEqual([
       { id: "T2", author: "alice", body: "" },
