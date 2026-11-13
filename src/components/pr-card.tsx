@@ -64,6 +64,40 @@ export function prCanMerge(pr: PullRequestSummary): boolean {
   return pr.mergeable === "MERGEABLE" && pr.reviewDecision !== "REVIEW_REQUIRED" && pr.reviewDecision !== "CHANGES_REQUESTED";
 }
 
+/**
+ * Review 门禁徽章：review 有待修复/待审的就亮出来，全部清完（review 通过 + CI 可合并
+ * + 无冲突）才亮「可合并」——与合并按钮可点状态同一判定（prCanMerge），不会互相矛盾。
+ * 冲突时交给「解决冲突」按钮表达，不重复提示。
+ */
+export function reviewGateBadge(pr: PullRequestSummary) {
+  if (pr.mergeable === "CONFLICTING") return null;
+  if (pr.reviewDecision === "CHANGES_REQUESTED") {
+    return (
+      <Badge variant="destructive">
+        <CircleX className="size-3" />
+        待修复
+      </Badge>
+    );
+  }
+  if (pr.reviewDecision === "REVIEW_REQUIRED") {
+    return (
+      <Badge className="border-transparent bg-amber-500/10 text-amber-600 dark:text-amber-400">
+        <CircleDashed className="size-3" />
+        待 review
+      </Badge>
+    );
+  }
+  if (prCanMerge(pr)) {
+    return (
+      <Badge className="border-transparent bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+        <GitMerge className="size-3" />
+        可合并
+      </Badge>
+    );
+  }
+  return null;
+}
+
 /** A tiny ring that fills in as `percent` climbs — used in place of the generic spinner once a check has an estimated duration to measure progress against. */
 function CheckProgressRing({ percent, className }: { percent: number; className?: string }) {
   const radius = 6;
@@ -212,6 +246,7 @@ function PrCardImpl({
       >
         <div className="flex items-center gap-2 px-3 py-2 text-sm">
           {rollupBadge(pr.rollupState)}
+          {reviewGateBadge(pr)}
           <a href={pr.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate font-medium hover:underline">
             #{pr.number} {pr.title}
           </a>
@@ -241,6 +276,7 @@ function PrCardImpl({
                 Draft
               </Badge>
             )}
+            {reviewGateBadge(pr)}
           </div>
           <a
             href={pr.url}
